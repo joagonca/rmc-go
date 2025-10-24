@@ -129,7 +129,8 @@ All pen colors are rendered with accurate RGB values and appropriate opacity for
 
 ## Limitations
 
-- Text rendering is not yet fully implemented
+- Character-level text formatting (bold/italic within paragraphs) is not implemented
+- GlyphRange (PDF highlights) are not yet rendered
 - Some newer block types may not be supported
 - Parser is tolerant of errors and will skip unrecognized blocks
 
@@ -152,11 +153,12 @@ This is a work-in-progress implementation. The core functionality for reading st
 - ✅ All pen types and colors (including highlights and shaders)
 - ✅ Pressure-sensitive stroke rendering
 - ✅ Layer support
-- ⚠️  Text rendering (partially implemented)
+- ✅ Text rendering with paragraph styles
 - ⚠️  Some newer block types may not be fully supported
 
 ### Recent Updates
 
+- **Text Rendering**: Implemented full text rendering support with paragraph styles (heading, plain, bold, bullet, checkbox). Text from .rm files is now properly rendered to SVG output with correct positioning and styling.
 - **Highlight & Shader Support**: Added full support for all 14 highlight and shader color variants, including accurate RGBA color parsing from v6 format files.
 
 Contributions and bug reports are welcome!

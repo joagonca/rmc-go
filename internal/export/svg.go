@@ -13,6 +13,7 @@ const (
 	ScreenHeight = 1872
 	ScreenDPI    = 226
 	Scale        = 72.0 / ScreenDPI
+	TextTopY     = -88.0 // Base Y offset for text
 )
 
 var lineHeights = map[rmscene.ParagraphStyle]float64{
@@ -39,6 +40,11 @@ func ExportToSVG(tree *rmscene.SceneTree, w io.Writer) error {
 `, height, width, scale(xMin), scale(yMin), width, height)
 
 	fmt.Fprintf(w, "\t<g id=\"p1\" style=\"display:inline\">\n")
+
+	// Render RootText if it exists
+	if tree.RootText != nil {
+		drawText(tree.RootText, w, "\t\t")
+	}
 
 	// Draw content
 	anchorPos := buildAnchorPos(tree.RootText)
@@ -134,6 +140,8 @@ func drawGroup(group *rmscene.Group, w io.Writer, anchorPos map[rmscene.CrdtID]f
 				drawGroup(v, w, anchorPos, indent+"\t")
 			case *rmscene.Line:
 				drawStroke(v, w, indent+"\t")
+			case *rmscene.Text:
+				drawText(v, w, indent+"\t")
 			}
 		}
 	}
@@ -182,4 +190,101 @@ func drawStroke(line *rmscene.Line, w io.Writer, indent string) {
 	}
 
 	fmt.Fprintf(w, "\" />\n")
+}
+
+func drawText(text *rmscene.Text, w io.Writer, indent string) {
+	// Convert text to TextDocument
+	doc, err := rmscene.BuildTextDocument(text)
+	if err != nil {
+		return
+	}
+
+	// Write opening group tag
+	fmt.Fprintf(w, "%s<g class=\"root-text\" style=\"display:inline\">\n", indent)
+
+	// Write CSS style block
+	writeTextStyles(w, indent+"\t")
+
+	// Iterate through paragraphs
+	yOffset := TextTopY
+	for _, p := range doc.Paragraphs {
+		// Get line height for this style
+		lineHeight := lineHeights[p.Style]
+		if lineHeight == 0 {
+			lineHeight = 70 // default
+		}
+		yOffset += lineHeight
+
+		// Calculate position
+		xPos := text.PosX
+		yPos := text.PosY + yOffset
+
+		// Get CSS class name
+		className := getStyleClassName(p.Style)
+
+		// Write text element (skip empty lines as they just add spacing)
+		trimmedText := p.Text // Don't trim - preserve spacing
+		if trimmedText != "" {
+			fmt.Fprintf(w, "%s<text x=\"%.3f\" y=\"%.3f\" class=\"%s\">%s</text>\n",
+				indent+"\t", scale(xPos), scale(yPos), className, htmlEscape(trimmedText))
+		}
+	}
+
+	// Close group
+	fmt.Fprintf(w, "%s</g>\n", indent)
+}
+
+func writeTextStyles(w io.Writer, indent string) {
+	fmt.Fprintf(w, "%s<style>\n", indent)
+	fmt.Fprintf(w, "%s\ttext.heading { font: 14pt serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.bold { font: 8pt sans-serif; font-weight: bold; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext, text.plain { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.bullet { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.bullet2 { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.checkbox { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.checkbox-checked { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s</style>\n", indent)
+}
+
+func getStyleClassName(style rmscene.ParagraphStyle) string {
+	switch style {
+	case rmscene.StyleHeading:
+		return "heading"
+	case rmscene.StyleBold:
+		return "bold"
+	case rmscene.StylePlain:
+		return "plain"
+	case rmscene.StyleBullet:
+		return "bullet"
+	case rmscene.StyleBullet2:
+		return "bullet2"
+	case rmscene.StyleCheckbox:
+		return "checkbox"
+	case rmscene.StyleCheckboxChecked:
+		return "checkbox-checked"
+	default:
+		return "plain"
+	}
+}
+
+func htmlEscape(s string) string {
+	// Escape HTML special characters
+	result := ""
+	for _, ch := range s {
+		switch ch {
+		case '&':
+			result += "&amp;"
+		case '<':
+			result += "&lt;"
+		case '>':
+			result += "&gt;"
+		case '"':
+			result += "&quot;"
+		case '\'':
+			result += "&#39;"
+		default:
+			result += string(ch)
+		}
+	}
+	return result
 }
