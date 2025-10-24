@@ -304,3 +304,14 @@ func (tbr *TaggedBlockReader) ReadString(index int) (string, error) {
 
 	return tbr.data.ReadString()
 }
+
+// RemainingInBlock returns the number of bytes remaining in the current block
+func (tbr *TaggedBlockReader) RemainingInBlock() int64 {
+	if tbr.limitedReader == nil {
+		return 0
+	}
+	// Account for bytes buffered in the reader but not yet consumed
+	buffered := int64(tbr.reader.Buffered())
+	remaining := tbr.limitedReader.Remaining() + buffered
+	return remaining
+}

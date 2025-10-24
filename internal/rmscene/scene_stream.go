@@ -90,9 +90,13 @@ func (st *SceneTree) processBlock(reader *TaggedBlockReader, blockInfo *BlockInf
 		return st.readSceneLineItemBlock(reader, blockInfo.CurrentVersion)
 	case BlockTypeRootText:
 		return st.readRootTextBlock(reader)
-	case BlockTypeMigrationInfo, BlockTypeAuthorIDs, BlockTypePageInfo, BlockTypeSceneInfo:
+	case BlockTypeMigrationInfo, BlockTypeAuthorIDs, BlockTypePageInfo:
 		// Skip these blocks for now
 		return nil
+	case BlockTypeSceneInfo:
+		// Skip SceneInfo block for now
+		return nil
+
 	default:
 		// Unknown block type - skip
 		return nil
@@ -415,6 +419,8 @@ func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
 	}
 
 	numPoints := int(subblockLen) / pointSize
+	extraBytesInSubblock := int(subblockLen) % pointSize
+
 	points := make([]Point, numPoints)
 
 	for i := 0; i < numPoints; i++ {
@@ -423,6 +429,12 @@ func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
 			return nil, err
 		}
 		points[i] = point
+	}
+
+	// Check if there are extra bytes at the end of the points subblock
+	if extraBytesInSubblock > 0 {
+		extra, _ := reader.data.ReadBytes(extraBytesInSubblock)
+		fmt.Printf("Debug: Extra bytes in points subblock: %v\n", extra)
 	}
 
 	// Read timestamp (unused)
@@ -437,6 +449,28 @@ func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
 		id, err := reader.ReadID(7)
 		if err == nil {
 			moveID = &id
+		}
+	}
+
+	// Check if there are additional bytes for color data (highlight/shader colors)
+	remaining := reader.RemainingInBlock()
+
+	if remaining >= 6 {
+		// Read 2-byte prefix
+		_, err := reader.data.ReadBytes(2)
+		if err == nil {
+			// Read RGBA color (BGRA order in file)
+			b, errB := reader.data.ReadUint8()
+			g, errG := reader.data.ReadUint8()
+			r, errR := reader.data.ReadUint8()
+			a, errA := reader.data.ReadUint8()
+
+			if errB == nil && errG == nil && errR == nil && errA == nil {
+				rgba := RGBA{R: r, G: g, B: b, A: a}
+				if mappedColor, exists := HardcodedColorMap[rgba]; exists {
+					colorID = uint32(mappedColor)
+				}
+			}
 		}
 	}
 

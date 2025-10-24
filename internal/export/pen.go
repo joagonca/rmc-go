@@ -21,10 +21,29 @@ var rmPalette = map[rmscene.PenColor]RGB{
 	rmscene.ColorBlue:        {78, 105, 201},
 	rmscene.ColorRed:         {179, 62, 57},
 	rmscene.ColorGrayOverlap: {125, 125, 125},
+	rmscene.ColorHighlight:   {255, 237, 117}, // Default highlight color (yellow)
 	rmscene.ColorGreen2:      {161, 216, 125},
 	rmscene.ColorCyan:        {139, 208, 229},
 	rmscene.ColorMagenta:     {183, 130, 205},
 	rmscene.ColorYellow2:     {247, 232, 81},
+
+	// Highlight colors
+	rmscene.ColorHighlightYellow: {255, 237, 117},
+	rmscene.ColorHighlightBlue:   {190, 234, 254},
+	rmscene.ColorHighlightPink:   {242, 158, 255},
+	rmscene.ColorHighlightOrange: {255, 186, 140},
+	rmscene.ColorHighlightGreen:  {186, 252, 159},
+	rmscene.ColorHighlightGray:   {214, 214, 214},
+
+	// Shader colors
+	rmscene.ColorShaderGray:    {120, 120, 120},
+	rmscene.ColorShaderOrange:  {234, 147, 72},
+	rmscene.ColorShaderMagenta: {186, 97, 163},
+	rmscene.ColorShaderBlue:    {95, 129, 188},
+	rmscene.ColorShaderRed:     {187, 76, 76},
+	rmscene.ColorShaderGreen:   {112, 190, 132},
+	rmscene.ColorShaderYellow:  {229, 222, 97},
+	rmscene.ColorShaderCyan:    {111, 203, 210},
 }
 
 type pen struct {
@@ -118,8 +137,12 @@ func (p *pen) getSegmentColor(point rmscene.Point, lastWidth float64) string {
 		pressure := float64(point.Pressure) / 255.0
 		intensity := (0.1 * -(speed / 35.0)) + (1.2 * pressure) + 0.5
 		intensity = clamp(intensity)
-		gray := int(math.Min(math.Abs(intensity-1)*255, 60))
-		return fmt.Sprintf("rgb(%d,%d,%d)", gray, gray, gray)
+		// Apply intensity to the base color instead of always using gray
+		factor := math.Min(math.Abs(intensity-1), 0.235) // max darkening of ~60/255
+		r := int(float64(p.baseColor.R) * (1 - factor))
+		g := int(float64(p.baseColor.G) * (1 - factor))
+		b := int(float64(p.baseColor.B) * (1 - factor))
+		return fmt.Sprintf("rgb(%d,%d,%d)", r, g, b)
 
 	case "Brush":
 		speed := float64(point.Speed) / 4.0
