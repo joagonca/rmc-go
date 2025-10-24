@@ -10,6 +10,7 @@ This is a port of the Python [rmc](https://github.com/ricklupton/rmc) tool, whic
 - Export to SVG format
 - Export to PDF format (requires Inkscape)
 - Handles strokes/drawings with different pen types and colors
+- Support for all pen colors including highlights and shaders
 - Command-line interface
 
 ## Installation
@@ -100,16 +101,31 @@ This implementation:
 
 ## Supported Pen Types
 
-- Ballpoint
-- Fineliner
-- Marker
-- Pencil
-- Mechanical Pencil
-- Paintbrush/Brush
-- Highlighter
-- Eraser
+- Ballpoint (v1 & v2)
+- Fineliner (v1 & v2)
+- Marker (v1 & v2)
+- Pencil (v1 & v2)
+- Mechanical Pencil (v1 & v2)
+- Paintbrush/Brush (v1 & v2)
+- Highlighter (v1 & v2)
+- Eraser & Eraser Area
 - Calligraphy
 - Shader
+
+## Supported Colors
+
+### Standard Colors
+- Black, Gray, White
+- Yellow, Green, Pink, Blue, Red
+- Cyan, Magenta
+
+### Highlight Colors (6 variants)
+- Yellow, Blue, Pink, Orange, Green, Gray
+
+### Shader Colors (8 variants)
+- Gray, Orange, Magenta, Blue, Red, Green, Yellow, Cyan
+
+All pen colors are rendered with accurate RGB values and appropriate opacity for highlighters and shaders.
 
 ## Limitations
 
@@ -131,6 +147,16 @@ MIT License (same as the original rmc project)
 
 ## Development Status
 
-This is a work-in-progress implementation. The core functionality for reading stroke data and exporting to SVG/PDF is working, but some advanced features (text rendering, all block types) are not yet fully implemented.
+This is a work-in-progress implementation. The core functionality for reading stroke data and exporting to SVG/PDF is working, including:
+
+- ✅ All pen types and colors (including highlights and shaders)
+- ✅ Pressure-sensitive stroke rendering
+- ✅ Layer support
+- ⚠️  Text rendering (partially implemented)
+- ⚠️  Some newer block types may not be fully supported
+
+### Recent Updates
+
+- **Highlight & Shader Support**: Added full support for all 14 highlight and shader color variants, including accurate RGBA color parsing from v6 format files.
 
 Contributions and bug reports are welcome!

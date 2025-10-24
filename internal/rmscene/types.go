@@ -64,7 +64,48 @@ const (
 	ColorCyan         PenColor = 11
 	ColorMagenta      PenColor = 12
 	ColorYellow2      PenColor = 13
+
+	// Highlight colors
+	ColorHighlightYellow PenColor = 14
+	ColorHighlightBlue   PenColor = 15
+	ColorHighlightPink   PenColor = 16
+	ColorHighlightOrange PenColor = 17
+	ColorHighlightGreen  PenColor = 18
+	ColorHighlightGray   PenColor = 19
+
+	// Shader colors
+	ColorShaderGray    PenColor = 20
+	ColorShaderOrange  PenColor = 21
+	ColorShaderMagenta PenColor = 22
+	ColorShaderBlue    PenColor = 23
+	ColorShaderRed     PenColor = 24
+	ColorShaderGreen   PenColor = 25
+	ColorShaderYellow  PenColor = 26
+	ColorShaderCyan    PenColor = 27
 )
+
+// RGBA represents an RGBA color
+type RGBA struct {
+	R, G, B, A uint8
+}
+
+// HardcodedColorMap maps RGBA values to specific pen colors
+var HardcodedColorMap = map[RGBA]PenColor{
+	{255, 237, 117, 255}: ColorHighlightYellow,
+	{190, 234, 254, 255}: ColorHighlightBlue,
+	{242, 158, 255, 255}: ColorHighlightPink,
+	{255, 186, 140, 255}: ColorHighlightOrange,
+	{186, 252, 159, 255}: ColorHighlightGreen,
+	{214, 214, 214, 255}: ColorHighlightGray,
+	{120, 120, 120, 255}: ColorShaderGray,
+	{234, 147, 72, 255}:  ColorShaderOrange,
+	{186, 97, 163, 255}:  ColorShaderMagenta,
+	{95, 129, 188, 255}:  ColorShaderBlue,
+	{187, 76, 76, 255}:   ColorShaderRed,
+	{112, 190, 132, 255}: ColorShaderGreen,
+	{229, 222, 97, 255}:  ColorShaderYellow,
+	{111, 203, 210, 255}: ColorShaderCyan,
+}
 
 // Pen represents different pen/tool types
 type Pen uint32
