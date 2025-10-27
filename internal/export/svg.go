@@ -28,8 +28,11 @@ var lineHeights = map[rmscene.ParagraphStyle]float64{
 
 // ExportToSVG exports a scene tree to SVG format
 func ExportToSVG(tree *rmscene.SceneTree, w io.Writer) error {
-	// Calculate bounding box
-	xMin, xMax, yMin, yMax := getBoundingBox(tree.Root, make(map[rmscene.CrdtID]float64))
+	// Build anchor positions (including text-based anchors)
+	anchorPos := buildAnchorPos(tree.RootText)
+
+	// Calculate bounding box using the anchor positions
+	xMin, xMax, yMin, yMax := getBoundingBox(tree.Root, anchorPos)
 
 	width := scale(xMax - xMin + 1)
 	height := scale(yMax - yMin + 1)
@@ -46,8 +49,7 @@ func ExportToSVG(tree *rmscene.SceneTree, w io.Writer) error {
 		drawText(tree.RootText, w, "\t\t")
 	}
 
-	// Draw content
-	anchorPos := buildAnchorPos(tree.RootText)
+	// Draw content (use anchor positions without text for strokes)
 	drawGroup(tree.Root, w, anchorPos, "\t\t")
 
 	// Close
@@ -64,11 +66,61 @@ func scale(v float64) float64 {
 func buildAnchorPos(text *rmscene.Text) map[rmscene.CrdtID]float64 {
 	anchorPos := make(map[rmscene.CrdtID]float64)
 
-	// Special anchors
+	// Special anchors (hardcoded in Python too)
 	anchorPos[rmscene.CrdtID{Part1: 0, Part2: 281474976710654}] = 100
 	anchorPos[rmscene.CrdtID{Part1: 0, Part2: 281474976710655}] = 100
 
-	// TODO: Add text-based anchors when text is parsed
+	// Build anchors from text - we need to map EVERY character position
+	// because groups can anchor to specific character positions
+	if text != nil && text.Items != nil {
+		yOffset := TextTopY
+
+		// Process each text item
+		for _, item := range text.Items.Items {
+			if item.DeletedLength > 0 || item.Value == nil {
+				continue
+			}
+
+			str, ok := item.Value.(string)
+			if !ok {
+				continue
+			}
+
+			// Each character in the CRDT has its own ID
+			// The ItemID is the ID of the first character,
+			// and each subsequent character increments by 1
+			currentID := item.ItemID
+			for i, ch := range str {
+				// Calculate the CRDT ID for this character
+				charID := rmscene.CrdtID{
+					Part1: currentID.Part1,
+					Part2: currentID.Part2 + uint64(i),
+				}
+
+				// Look up the style for this character position
+				// For simplicity, use plain style for all lines except explicitly styled ones
+				// The reMarkable seems to use plain (70pt) line height for regular text
+				currentStyle := rmscene.StylePlain
+
+				// Only increment on newlines (not on the first character)
+				if ch == '\n' {
+					// Get line height for current style
+					lineHeight := lineHeights[currentStyle]
+					if lineHeight == 0 {
+						lineHeight = 70
+					}
+					yOffset += lineHeight
+
+					// Map this character's ID to its Y position
+					anchorPos[charID] = text.PosY + yOffset
+				} else if i == 0 {
+					// For the first character, just map it to current position
+					// without incrementing (we already incremented on the previous newline)
+					anchorPos[charID] = text.PosY + yOffset
+				}
+			}
+		}
+	}
 
 	return anchorPos
 }

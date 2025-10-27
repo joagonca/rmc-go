@@ -24,9 +24,12 @@ func BuildTextDocument(text *Text) (*TextDocument, error) {
 		return &TextDocument{Paragraphs: []Paragraph{}}, nil
 	}
 
-	// Build ordered list of text items
-	var textContent strings.Builder
-	var itemIDs []CrdtID // Track item IDs for style mapping
+	// Build ordered list of text items and track their start positions
+	var allText strings.Builder
+	var itemStarts []struct {
+		itemID CrdtID
+		start  int
+	}
 
 	for _, item := range text.Items.Items {
 		// Skip deleted items
@@ -37,13 +40,17 @@ func BuildTextDocument(text *Text) (*TextDocument, error) {
 		// Extract text value
 		if item.Value != nil {
 			if str, ok := item.Value.(string); ok {
-				textContent.WriteString(str)
-				itemIDs = append(itemIDs, item.ItemID)
+				startPos := allText.Len()
+				allText.WriteString(str)
+				itemStarts = append(itemStarts, struct {
+					itemID CrdtID
+					start  int
+				}{itemID: item.ItemID, start: startPos})
 			}
 		}
 	}
 
-	fullText := textContent.String()
+	fullText := allText.String()
 	if fullText == "" {
 		return &TextDocument{Paragraphs: []Paragraph{}}, nil
 	}
@@ -62,6 +69,7 @@ func BuildTextDocument(text *Text) (*TextDocument, error) {
 		Paragraphs: make([]Paragraph, 0, len(lines)),
 	}
 
+	charPos := 0
 	for i, line := range lines {
 		// Determine style for this paragraph
 		// The style at CrdtID(0, 0) applies to the first paragraph only
@@ -71,15 +79,27 @@ func BuildTextDocument(text *Text) (*TextDocument, error) {
 			paraStyle = defaultStyle
 		}
 
+		// Find the item ID that corresponds to the start of this line
+		startID := CrdtID{Part1: 0, Part2: uint64(i)} // Default fallback
+		for _, is := range itemStarts {
+			if is.start <= charPos && charPos < is.start+len(line)+1 {
+				startID = is.itemID
+				break
+			}
+		}
+
 		// Even if the line is empty, we want to preserve it for layout
 		// (empty lines still take up vertical space)
 		para := Paragraph{
 			Text:    line,
 			Style:   paraStyle,
-			StartID: CrdtID{Part1: 0, Part2: uint64(i)}, // Use line index as ID
+			StartID: startID,
 		}
 
 		doc.Paragraphs = append(doc.Paragraphs, para)
+
+		// Move to next line (line length + newline)
+		charPos += len(line) + 1
 	}
 
 	return doc, nil

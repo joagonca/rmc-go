@@ -725,15 +725,39 @@ All Phase 1 tasks have been successfully implemented:
 - `text_and_strokes.rm`: Text and strokes render together correctly
 - Output matches Python rmc implementation
 
+### ✅ Phase 2 Complete (2025-10-24)
+
+**Proper Layout and Anchoring** has been successfully implemented:
+
+1. **buildAnchorPos() Enhancement** ✅
+   - Implemented character-level CRDT ID mapping
+   - Each character position (especially newlines) gets its own anchor
+   - Groups can now anchor to specific text positions
+   - Uses plain style (70pt) line height for consistent spacing
+
+2. **Anchor Position Calculation Fix** ✅
+   - Fixed order: build anchors BEFORE calculating bounding box
+   - Anchors are now correctly applied to groups that reference text positions
+   - Strokes positioned correctly relative to text
+
+3. **Text-Based Anchor Mapping** ✅
+   - Maps CRDT character IDs (e.g., CrdtID(1,24)) to Y positions
+   - Handles multi-character text items with incrementing IDs
+   - Properly calculates cumulative Y offsets based on line heights
+
+**Test Results:**
+- `strokes_colour.rm` and `strokes_and_text_colour.rm`: Strokes position identically
+- Groups anchored to text lines render at correct Y positions
+- No spacing issues when text is present
+
 ### Known Limitations (as expected)
 - Character-level formatting (bold/italic within paragraphs) not implemented (Python doesn't have this either)
 - GlyphRange parsing/rendering not implemented yet (Phase 3)
-- Text-based anchors not yet implemented (Phase 2)
 
 ### Next Steps
-Phase 2 (proper anchoring) and Phase 3 (GlyphRange) remain optional enhancements.
+Phase 3 (GlyphRange support) remains an optional enhancement.
 
 ---
 
 *Last Updated: 2025-10-24*
-*Status: Phase 1 Complete - Text Rendering Working*
+*Status: Phase 1 & 2 Complete - Text Rendering and Anchoring Working*
