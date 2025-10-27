@@ -49,6 +49,39 @@ func ExportToSVG(tree *parser.SceneTree, w io.Writer) error {
 	// Calculate bounding box using the anchor positions
 	xMin, xMax, yMin, yMax := getBoundingBox(tree.Root, anchorPos)
 
+	// Include text area in bounding box calculation
+	if tree.RootText != nil {
+		textMinX := tree.RootText.PosX
+		textMaxX := tree.RootText.PosX + float64(tree.RootText.Width)
+
+		// Calculate text Y range by going through all paragraphs
+		// This matches the actual rendering logic in drawText()
+		doc, err := parser.BuildTextDocument(tree.RootText)
+		if err == nil && len(doc.Paragraphs) > 0 {
+			yOffset := TextTopY
+			textMinY := math.MaxFloat64
+			textMaxY := -math.MaxFloat64
+
+			for _, p := range doc.Paragraphs {
+				lineHeight := lineHeights[p.Style]
+				if lineHeight == 0 {
+					lineHeight = 70
+				}
+				yOffset += lineHeight
+				yPos := tree.RootText.PosY + yOffset
+
+				// Track min and max Y positions
+				textMinY = math.Min(textMinY, yPos)
+				textMaxY = math.Max(textMaxY, yPos)
+			}
+
+			xMin = math.Min(xMin, textMinX)
+			xMax = math.Max(xMax, textMaxX)
+			yMin = math.Min(yMin, textMinY)
+			yMax = math.Max(yMax, textMaxY)
+		}
+	}
+
 	width := scale(xMax - xMin + 1)
 	height := scale(yMax - yMin + 1)
 
