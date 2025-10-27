@@ -7,11 +7,11 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/ctw00272/rmc-go/internal/rmscene"
+	"github.com/ctw00272/rmc-go/internal/parser"
 )
 
 // ExportToPDF exports a scene tree to PDF format via SVG conversion
-func ExportToPDF(tree *rmscene.SceneTree, w io.Writer) error {
+func ExportToPDF(tree *parser.SceneTree, w io.Writer) error {
 	// Create temporary SVG
 	svgBuf := &bytes.Buffer{}
 	if err := ExportToSVG(tree, svgBuf); err != nil {

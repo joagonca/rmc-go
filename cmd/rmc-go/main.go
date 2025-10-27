@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/ctw00272/rmc-go/internal/export"
-	"github.com/ctw00272/rmc-go/internal/rmscene"
+	"github.com/ctw00272/rmc-go/internal/parser"
 	"github.com/spf13/cobra"
 )
 
@@ -55,7 +55,7 @@ func run(cmd *cobra.Command, args []string) error {
 	defer f.Close()
 
 	// Parse the .rm file
-	tree, err := rmscene.ReadSceneTree(f)
+	tree, err := parser.ReadSceneTree(f)
 	if err != nil {
 		return fmt.Errorf("failed to parse .rm file: %w", err)
 	}

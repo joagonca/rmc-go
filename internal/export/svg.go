@@ -5,7 +5,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/ctw00272/rmc-go/internal/rmscene"
+	"github.com/ctw00272/rmc-go/internal/parser"
 )
 
 const (
@@ -16,18 +16,18 @@ const (
 	TextTopY     = -88.0 // Base Y offset for text
 )
 
-var lineHeights = map[rmscene.ParagraphStyle]float64{
-	rmscene.StylePlain:           70,
-	rmscene.StyleBullet:          35,
-	rmscene.StyleBullet2:         35,
-	rmscene.StyleBold:            70,
-	rmscene.StyleHeading:         150,
-	rmscene.StyleCheckbox:        35,
-	rmscene.StyleCheckboxChecked: 35,
+var lineHeights = map[parser.ParagraphStyle]float64{
+	parser.StylePlain:           70,
+	parser.StyleBullet:          35,
+	parser.StyleBullet2:         35,
+	parser.StyleBold:            70,
+	parser.StyleHeading:         150,
+	parser.StyleCheckbox:        35,
+	parser.StyleCheckboxChecked: 35,
 }
 
 // ExportToSVG exports a scene tree to SVG format
-func ExportToSVG(tree *rmscene.SceneTree, w io.Writer) error {
+func ExportToSVG(tree *parser.SceneTree, w io.Writer) error {
 	// Build anchor positions (including text-based anchors)
 	anchorPos := buildAnchorPos(tree.RootText)
 
@@ -63,12 +63,12 @@ func scale(v float64) float64 {
 	return v * Scale
 }
 
-func buildAnchorPos(text *rmscene.Text) map[rmscene.CrdtID]float64 {
-	anchorPos := make(map[rmscene.CrdtID]float64)
+func buildAnchorPos(text *parser.Text) map[parser.CrdtID]float64 {
+	anchorPos := make(map[parser.CrdtID]float64)
 
 	// Special anchors (hardcoded in Python too)
-	anchorPos[rmscene.CrdtID{Part1: 0, Part2: 281474976710654}] = 100
-	anchorPos[rmscene.CrdtID{Part1: 0, Part2: 281474976710655}] = 100
+	anchorPos[parser.CrdtID{Part1: 0, Part2: 281474976710654}] = 100
+	anchorPos[parser.CrdtID{Part1: 0, Part2: 281474976710655}] = 100
 
 	// Build anchors from text - we need to map EVERY character position
 	// because groups can anchor to specific character positions
@@ -92,7 +92,7 @@ func buildAnchorPos(text *rmscene.Text) map[rmscene.CrdtID]float64 {
 			currentID := item.ItemID
 			for i, ch := range str {
 				// Calculate the CRDT ID for this character
-				charID := rmscene.CrdtID{
+				charID := parser.CrdtID{
 					Part1: currentID.Part1,
 					Part2: currentID.Part2 + uint64(i),
 				}
@@ -100,7 +100,7 @@ func buildAnchorPos(text *rmscene.Text) map[rmscene.CrdtID]float64 {
 				// Look up the style for this character position
 				// For simplicity, use plain style for all lines except explicitly styled ones
 				// The reMarkable seems to use plain (70pt) line height for regular text
-				currentStyle := rmscene.StylePlain
+				currentStyle := parser.StylePlain
 
 				// Only increment on newlines (not on the first character)
 				if ch == '\n' {
@@ -125,7 +125,7 @@ func buildAnchorPos(text *rmscene.Text) map[rmscene.CrdtID]float64 {
 	return anchorPos
 }
 
-func getBoundingBox(group *rmscene.Group, anchorPos map[rmscene.CrdtID]float64) (float64, float64, float64, float64) {
+func getBoundingBox(group *parser.Group, anchorPos map[parser.CrdtID]float64) (float64, float64, float64, float64) {
 	xMin := -float64(ScreenWidth) / 2
 	xMax := float64(ScreenWidth) / 2
 	yMin := 0.0
@@ -141,7 +141,7 @@ func getBoundingBox(group *rmscene.Group, anchorPos map[rmscene.CrdtID]float64) 
 		}
 
 		switch v := item.Value.(type) {
-		case *rmscene.Group:
+		case *parser.Group:
 			anchorX, anchorY := getAnchor(v, anchorPos)
 			xMinT, xMaxT, yMinT, yMaxT := getBoundingBox(v, anchorPos)
 			xMin = math.Min(xMin, xMinT+anchorX)
@@ -149,7 +149,7 @@ func getBoundingBox(group *rmscene.Group, anchorPos map[rmscene.CrdtID]float64) 
 			yMin = math.Min(yMin, yMinT+anchorY)
 			yMax = math.Max(yMax, yMaxT+anchorY)
 
-		case *rmscene.Line:
+		case *parser.Line:
 			for _, p := range v.Points {
 				xMin = math.Min(xMin, float64(p.X))
 				xMax = math.Max(xMax, float64(p.X))
@@ -162,7 +162,7 @@ func getBoundingBox(group *rmscene.Group, anchorPos map[rmscene.CrdtID]float64) 
 	return xMin, xMax, yMin, yMax
 }
 
-func getAnchor(group *rmscene.Group, anchorPos map[rmscene.CrdtID]float64) (float64, float64) {
+func getAnchor(group *parser.Group, anchorPos map[parser.CrdtID]float64) (float64, float64) {
 	anchorX := 0.0
 	anchorY := 0.0
 
@@ -176,7 +176,7 @@ func getAnchor(group *rmscene.Group, anchorPos map[rmscene.CrdtID]float64) (floa
 	return anchorX, anchorY
 }
 
-func drawGroup(group *rmscene.Group, w io.Writer, anchorPos map[rmscene.CrdtID]float64, indent string) {
+func drawGroup(group *parser.Group, w io.Writer, anchorPos map[parser.CrdtID]float64, indent string) {
 	anchorX, anchorY := getAnchor(group, anchorPos)
 	fmt.Fprintf(w, "%s<g id=\"%s\" transform=\"translate(%.3f, %.3f)\">\n",
 		indent, group.NodeID, scale(anchorX), scale(anchorY))
@@ -188,11 +188,11 @@ func drawGroup(group *rmscene.Group, w io.Writer, anchorPos map[rmscene.CrdtID]f
 			}
 
 			switch v := item.Value.(type) {
-			case *rmscene.Group:
+			case *parser.Group:
 				drawGroup(v, w, anchorPos, indent+"\t")
-			case *rmscene.Line:
+			case *parser.Line:
 				drawStroke(v, w, indent+"\t")
-			case *rmscene.Text:
+			case *parser.Text:
 				drawText(v, w, indent+"\t")
 			}
 		}
@@ -201,7 +201,7 @@ func drawGroup(group *rmscene.Group, w io.Writer, anchorPos map[rmscene.CrdtID]f
 	fmt.Fprintf(w, "%s</g>\n", indent)
 }
 
-func drawStroke(line *rmscene.Line, w io.Writer, indent string) {
+func drawStroke(line *parser.Line, w io.Writer, indent string) {
 	pen := createPen(line.Tool, line.Color, line.ThicknessScale)
 
 	lastXPos := -1.0
@@ -244,9 +244,9 @@ func drawStroke(line *rmscene.Line, w io.Writer, indent string) {
 	fmt.Fprintf(w, "\" />\n")
 }
 
-func drawText(text *rmscene.Text, w io.Writer, indent string) {
+func drawText(text *parser.Text, w io.Writer, indent string) {
 	// Convert text to TextDocument
-	doc, err := rmscene.BuildTextDocument(text)
+	doc, err := parser.BuildTextDocument(text)
 	if err != nil {
 		return
 	}
@@ -298,21 +298,21 @@ func writeTextStyles(w io.Writer, indent string) {
 	fmt.Fprintf(w, "%s</style>\n", indent)
 }
 
-func getStyleClassName(style rmscene.ParagraphStyle) string {
+func getStyleClassName(style parser.ParagraphStyle) string {
 	switch style {
-	case rmscene.StyleHeading:
+	case parser.StyleHeading:
 		return "heading"
-	case rmscene.StyleBold:
+	case parser.StyleBold:
 		return "bold"
-	case rmscene.StylePlain:
+	case parser.StylePlain:
 		return "plain"
-	case rmscene.StyleBullet:
+	case parser.StyleBullet:
 		return "bullet"
-	case rmscene.StyleBullet2:
+	case parser.StyleBullet2:
 		return "bullet2"
-	case rmscene.StyleCheckbox:
+	case parser.StyleCheckbox:
 		return "checkbox"
-	case rmscene.StyleCheckboxChecked:
+	case parser.StyleCheckboxChecked:
 		return "checkbox-checked"
 	default:
 		return "plain"

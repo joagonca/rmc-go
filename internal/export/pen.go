@@ -4,46 +4,46 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/ctw00272/rmc-go/internal/rmscene"
+	"github.com/ctw00272/rmc-go/internal/parser"
 )
 
 type RGB struct {
 	R, G, B int
 }
 
-var rmPalette = map[rmscene.PenColor]RGB{
-	rmscene.ColorBlack:       {0, 0, 0},
-	rmscene.ColorGray:        {144, 144, 144},
-	rmscene.ColorWhite:       {255, 255, 255},
-	rmscene.ColorYellow:      {251, 247, 25},
-	rmscene.ColorGreen:       {0, 255, 0},
-	rmscene.ColorPink:        {255, 192, 203},
-	rmscene.ColorBlue:        {78, 105, 201},
-	rmscene.ColorRed:         {179, 62, 57},
-	rmscene.ColorGrayOverlap: {125, 125, 125},
-	rmscene.ColorHighlight:   {255, 237, 117}, // Default highlight color (yellow)
-	rmscene.ColorGreen2:      {161, 216, 125},
-	rmscene.ColorCyan:        {139, 208, 229},
-	rmscene.ColorMagenta:     {183, 130, 205},
-	rmscene.ColorYellow2:     {247, 232, 81},
+var rmPalette = map[parser.PenColor]RGB{
+	parser.ColorBlack:       {0, 0, 0},
+	parser.ColorGray:        {144, 144, 144},
+	parser.ColorWhite:       {255, 255, 255},
+	parser.ColorYellow:      {251, 247, 25},
+	parser.ColorGreen:       {0, 255, 0},
+	parser.ColorPink:        {255, 192, 203},
+	parser.ColorBlue:        {78, 105, 201},
+	parser.ColorRed:         {179, 62, 57},
+	parser.ColorGrayOverlap: {125, 125, 125},
+	parser.ColorHighlight:   {255, 237, 117}, // Default highlight color (yellow)
+	parser.ColorGreen2:      {161, 216, 125},
+	parser.ColorCyan:        {139, 208, 229},
+	parser.ColorMagenta:     {183, 130, 205},
+	parser.ColorYellow2:     {247, 232, 81},
 
 	// Highlight colors
-	rmscene.ColorHighlightYellow: {255, 237, 117},
-	rmscene.ColorHighlightBlue:   {190, 234, 254},
-	rmscene.ColorHighlightPink:   {242, 158, 255},
-	rmscene.ColorHighlightOrange: {255, 186, 140},
-	rmscene.ColorHighlightGreen:  {186, 252, 159},
-	rmscene.ColorHighlightGray:   {214, 214, 214},
+	parser.ColorHighlightYellow: {255, 237, 117},
+	parser.ColorHighlightBlue:   {190, 234, 254},
+	parser.ColorHighlightPink:   {242, 158, 255},
+	parser.ColorHighlightOrange: {255, 186, 140},
+	parser.ColorHighlightGreen:  {186, 252, 159},
+	parser.ColorHighlightGray:   {214, 214, 214},
 
 	// Shader colors
-	rmscene.ColorShaderGray:    {120, 120, 120},
-	rmscene.ColorShaderOrange:  {234, 147, 72},
-	rmscene.ColorShaderMagenta: {186, 97, 163},
-	rmscene.ColorShaderBlue:    {95, 129, 188},
-	rmscene.ColorShaderRed:     {187, 76, 76},
-	rmscene.ColorShaderGreen:   {112, 190, 132},
-	rmscene.ColorShaderYellow:  {229, 222, 97},
-	rmscene.ColorShaderCyan:    {111, 203, 210},
+	parser.ColorShaderGray:    {120, 120, 120},
+	parser.ColorShaderOrange:  {234, 147, 72},
+	parser.ColorShaderMagenta: {186, 97, 163},
+	parser.ColorShaderBlue:    {95, 129, 188},
+	parser.ColorShaderRed:     {187, 76, 76},
+	parser.ColorShaderGreen:   {112, 190, 132},
+	parser.ColorShaderYellow:  {229, 222, 97},
+	parser.ColorShaderCyan:    {111, 203, 210},
 }
 
 type pen struct {
@@ -57,7 +57,7 @@ type pen struct {
 	thicknessScale float64
 }
 
-func createPen(penType rmscene.Pen, color rmscene.PenColor, thicknessScale float64) *pen {
+func createPen(penType parser.Pen, color parser.PenColor, thicknessScale float64) *pen {
 	baseColor, ok := rmPalette[color]
 	if !ok {
 		baseColor = RGB{0, 0, 0}
@@ -73,51 +73,51 @@ func createPen(penType rmscene.Pen, color rmscene.PenColor, thicknessScale float
 	}
 
 	switch penType {
-	case rmscene.PenBallpoint1, rmscene.PenBallpoint2:
+	case parser.PenBallpoint1, parser.PenBallpoint2:
 		p.name = "Ballpoint"
 		p.baseWidth = thicknessScale
 		p.segmentLength = 5
-	case rmscene.PenFineliner1, rmscene.PenFineliner2:
+	case parser.PenFineliner1, parser.PenFineliner2:
 		p.name = "Fineliner"
 		p.baseWidth = thicknessScale * 1.8
-	case rmscene.PenMarker1, rmscene.PenMarker2:
+	case parser.PenMarker1, parser.PenMarker2:
 		p.name = "Marker"
 		p.baseWidth = thicknessScale
 		p.segmentLength = 3
-	case rmscene.PenPencil1, rmscene.PenPencil2:
+	case parser.PenPencil1, parser.PenPencil2:
 		p.name = "Pencil"
 		p.baseWidth = thicknessScale
 		p.segmentLength = 2
-	case rmscene.PenMechanicalPencil1, rmscene.PenMechanicalPencil2:
+	case parser.PenMechanicalPencil1, parser.PenMechanicalPencil2:
 		p.name = "MechanicalPencil"
 		p.baseWidth = thicknessScale * thicknessScale
 		p.baseOpacity = 0.7
-	case rmscene.PenPaintbrush1, rmscene.PenPaintbrush2:
+	case parser.PenPaintbrush1, parser.PenPaintbrush2:
 		p.name = "Brush"
 		p.baseWidth = thicknessScale
 		p.segmentLength = 2
 		p.strokeLinecap = "round"
-	case rmscene.PenHighlighter1, rmscene.PenHighlighter2:
+	case parser.PenHighlighter1, parser.PenHighlighter2:
 		p.name = "Highlighter"
 		p.baseWidth = 15
 		p.strokeLinecap = "square"
 		p.baseOpacity = 0.3
 		p.strokeOpacity = 0.2
-	case rmscene.PenEraser:
+	case parser.PenEraser:
 		p.name = "Eraser"
 		p.baseWidth = thicknessScale * 2
 		p.strokeLinecap = "square"
-		p.baseColor = rmPalette[rmscene.ColorWhite]
-	case rmscene.PenEraserArea:
+		p.baseColor = rmPalette[parser.ColorWhite]
+	case parser.PenEraserArea:
 		p.name = "EraseArea"
 		p.baseWidth = thicknessScale
 		p.strokeLinecap = "square"
 		p.baseOpacity = 0
-	case rmscene.PenCalligraphy:
+	case parser.PenCalligraphy:
 		p.name = "Calligraphy"
 		p.baseWidth = thicknessScale
 		p.segmentLength = 2
-	case rmscene.PenShader:
+	case parser.PenShader:
 		p.name = "Shader"
 		p.baseWidth = 12
 		p.strokeLinecap = "round"
@@ -130,7 +130,7 @@ func createPen(penType rmscene.Pen, color rmscene.PenColor, thicknessScale float
 	return p
 }
 
-func (p *pen) getSegmentColor(point rmscene.Point, lastWidth float64) string {
+func (p *pen) getSegmentColor(point parser.Point, lastWidth float64) string {
 	switch p.name {
 	case "Ballpoint":
 		speed := float64(point.Speed) / 4.0
@@ -160,7 +160,7 @@ func (p *pen) getSegmentColor(point rmscene.Point, lastWidth float64) string {
 	}
 }
 
-func (p *pen) getSegmentWidth(point rmscene.Point, lastWidth float64) float64 {
+func (p *pen) getSegmentWidth(point parser.Point, lastWidth float64) float64 {
 	speed := float64(point.Speed) / 4.0
 	pressure := float64(point.Pressure) / 255.0
 	width := float64(point.Width) / 4.0
@@ -193,7 +193,7 @@ func (p *pen) getSegmentWidth(point rmscene.Point, lastWidth float64) float64 {
 	}
 }
 
-func (p *pen) getSegmentOpacity(point rmscene.Point, lastWidth float64) float64 {
+func (p *pen) getSegmentOpacity(point parser.Point, lastWidth float64) float64 {
 	speed := float64(point.Speed) / 4.0
 	pressure := float64(point.Pressure) / 255.0
 

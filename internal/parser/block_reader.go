@@ -1,4 +1,4 @@
-package rmscene
+package parser
 
 import (
 	"bufio"
