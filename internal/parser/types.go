@@ -122,14 +122,16 @@ func (p Pen) IsHighlighter() bool {
 type ParagraphStyle uint32
 
 const (
-	StyleBasic          ParagraphStyle = 0
-	StylePlain          ParagraphStyle = 1
-	StyleHeading        ParagraphStyle = 2
-	StyleBold           ParagraphStyle = 3
-	StyleBullet         ParagraphStyle = 4
-	StyleBullet2        ParagraphStyle = 5
-	StyleCheckbox       ParagraphStyle = 6
+	StyleBasic           ParagraphStyle = 0
+	StylePlain           ParagraphStyle = 1
+	StyleHeading         ParagraphStyle = 2
+	StyleBold            ParagraphStyle = 3
+	StyleBullet          ParagraphStyle = 4
+	StyleBullet2         ParagraphStyle = 5
+	StyleCheckbox        ParagraphStyle = 6
 	StyleCheckboxChecked ParagraphStyle = 7
+	// Additional styles found in newer reMarkable software
+	StyleNumbered        ParagraphStyle = 10 // Numbered list (1., 2., 3., etc.)
 )
 
 // Point represents a point in a stroke with pressure/speed data

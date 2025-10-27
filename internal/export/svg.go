@@ -31,6 +31,7 @@ var lineHeights = map[parser.ParagraphStyle]float64{
 	parser.StyleHeading:         150,
 	parser.StyleCheckbox:        35,
 	parser.StyleCheckboxChecked: 35,
+	parser.StyleNumbered:        35,
 }
 
 // ExportToSVG exports a scene tree to SVG format
@@ -47,6 +48,39 @@ func ExportToSVG(tree *parser.SceneTree, w io.Writer) error {
 
 	// Calculate bounding box using the anchor positions
 	xMin, xMax, yMin, yMax := getBoundingBox(tree.Root, anchorPos)
+
+	// Include text area in bounding box calculation
+	if tree.RootText != nil {
+		textMinX := tree.RootText.PosX
+		textMaxX := tree.RootText.PosX + float64(tree.RootText.Width)
+
+		// Calculate text Y range by going through all paragraphs
+		// This matches the actual rendering logic in drawText()
+		doc, err := parser.BuildTextDocument(tree.RootText)
+		if err == nil && len(doc.Paragraphs) > 0 {
+			yOffset := TextTopY
+			textMinY := math.MaxFloat64
+			textMaxY := -math.MaxFloat64
+
+			for _, p := range doc.Paragraphs {
+				lineHeight := lineHeights[p.Style]
+				if lineHeight == 0 {
+					lineHeight = 70
+				}
+				yOffset += lineHeight
+				yPos := tree.RootText.PosY + yOffset
+
+				// Track min and max Y positions
+				textMinY = math.Min(textMinY, yPos)
+				textMaxY = math.Max(textMaxY, yPos)
+			}
+
+			xMin = math.Min(xMin, textMinX)
+			xMax = math.Max(xMax, textMaxX)
+			yMin = math.Min(yMin, textMinY)
+			yMax = math.Max(yMax, textMaxY)
+		}
+	}
 
 	width := scale(xMax - xMin + 1)
 	height := scale(yMax - yMin + 1)
@@ -282,6 +316,7 @@ func drawText(text *parser.Text, w io.Writer, indent string) error {
 
 	// Iterate through paragraphs
 	yOffset := TextTopY
+	bulletNumber := 1 // Counter for numbered bullets (StyleBullet2)
 	for _, p := range doc.Paragraphs {
 		// Get line height for this style
 		lineHeight := lineHeights[p.Style]
@@ -300,8 +335,12 @@ func drawText(text *parser.Text, w io.Writer, indent string) error {
 		// Write text element (skip empty lines as they just add spacing)
 		trimmedText := p.Text // Don't trim - preserve spacing
 		if trimmedText != "" {
+			// Add appropriate prefix based on style
+			prefix := getParagraphPrefix(p.Style, &bulletNumber)
+			displayText := prefix + trimmedText
+
 			fmt.Fprintf(w, "%s<text x=\"%.3f\" y=\"%.3f\" class=\"%s\">%s</text>\n",
-				indent+"\t", scale(xPos), scale(yPos), className, htmlEscape(trimmedText))
+				indent+"\t", scale(xPos), scale(yPos), className, htmlEscape(displayText))
 		}
 	}
 
@@ -319,6 +358,7 @@ func writeTextStyles(w io.Writer, indent string) {
 	fmt.Fprintf(w, "%s\ttext.bullet2 { font: 7pt sans-serif; }\n", indent)
 	fmt.Fprintf(w, "%s\ttext.checkbox { font: 7pt sans-serif; }\n", indent)
 	fmt.Fprintf(w, "%s\ttext.checkbox-checked { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.numbered { font: 7pt sans-serif; }\n", indent)
 	fmt.Fprintf(w, "%s</style>\n", indent)
 }
 
@@ -338,6 +378,8 @@ func getStyleClassName(style parser.ParagraphStyle) string {
 		return "checkbox"
 	case parser.StyleCheckboxChecked:
 		return "checkbox-checked"
+	case parser.StyleNumbered:
+		return "numbered"
 	default:
 		return "plain"
 	}
@@ -346,4 +388,29 @@ func getStyleClassName(style parser.ParagraphStyle) string {
 func htmlEscape(s string) string {
 	// Use standard library for proper HTML escaping
 	return html.EscapeString(s)
+}
+
+// getParagraphPrefix returns the appropriate prefix for a paragraph based on its style
+func getParagraphPrefix(style parser.ParagraphStyle, bulletNumber *int) string {
+	switch style {
+	case parser.StyleBullet:
+		// Regular bullet point
+		return "• "
+	case parser.StyleBullet2:
+		// Alternative bullet (could also be numbered in some contexts)
+		return "• "
+	case parser.StyleNumbered:
+		// Numbered list
+		prefix := fmt.Sprintf("%d. ", *bulletNumber)
+		*bulletNumber++
+		return prefix
+	case parser.StyleCheckbox:
+		// Unchecked checkbox - using ballot box Unicode character
+		return "☐ "
+	case parser.StyleCheckboxChecked:
+		// Checked checkbox - using ballot box with check Unicode character
+		return "☑ "
+	default:
+		return ""
+	}
 }
