@@ -18,6 +18,7 @@ This is a port of the Python [rmc](https://github.com/ricklupton/rmc) tool, whic
 ### Prerequisites
 
 - Go 1.21 or later
+- Make (for building with Makefile)
 - Inkscape (optional, required for PDF export)
 
 ### Build from source
@@ -25,41 +26,70 @@ This is a port of the Python [rmc](https://github.com/ricklupton/rmc) tool, whic
 ```bash
 git clone <repository-url>
 cd rmc-go
-go build -o rmc-go ./cmd/rmc-go
+make build
 ```
+
+This will create the `rmc` binary in the project root directory.
 
 ## Usage
 
 ### Export to PDF
 
 ```bash
-./rmc-go file.rm -o output.pdf
+./rmc file.rm -o output.pdf
 ```
 
 ### Export to SVG
 
 ```bash
-./rmc-go file.rm -o output.svg
+./rmc file.rm -o output.svg
 ```
 
 ### Export to stdout
 
 ```bash
-./rmc-go file.rm -t svg > output.svg
-./rmc-go file.rm -t pdf > output.pdf
+./rmc file.rm -t svg > output.svg
+./rmc file.rm -t pdf > output.pdf
 ```
 
 ### Command-line options
 
 ```
 Usage:
-  rmc-go [input.rm] [flags]
+  rmc [input.rm] [flags]
 
 Flags:
-  -h, --help            help for rmc-go
+  -h, --help            help for rmc
   -o, --output string   Output file (default: stdout)
   -t, --type string     Output type: svg or pdf (default: guess from filename)
 ```
+
+## Development
+
+### Building
+
+Use the Makefile for all build operations:
+
+```bash
+# Build the rmc binary
+make build
+
+# Run integration tests with test files
+make test
+
+# Run Go unit tests
+make test-unit
+
+# Clean build artifacts and test outputs
+make clean
+
+# Show all available targets
+make help
+```
+
+### Testing
+
+The project includes test `.rm` files in the `tests/` directory. Run `make test` to verify that both SVG and PDF export work correctly with these files. Test outputs are saved to `test_output/` for inspection.
 
 ## Project Structure
 
@@ -68,15 +98,18 @@ rmc-go/
 ├── cmd/rmc-go/          # CLI application
 │   └── main.go
 ├── internal/
-│   ├── rmscene/         # v6 file format parser
+│   ├── parser/          # v6 file format parser
 │   │   ├── datastream.go      # Binary data stream reader
 │   │   ├── block_reader.go    # Tagged block reader
 │   │   ├── scene_stream.go    # Scene block parser
+│   │   ├── text.go            # Text document processing
 │   │   └── types.go           # Data structures
 │   └── export/          # Export functionality
 │       ├── svg.go             # SVG export
 │       ├── pen.go             # Pen rendering
 │       └── pdf.go             # PDF export (via SVG)
+├── tests/               # Test .rm files
+├── Makefile             # Build automation
 ├── go.mod
 └── README.md
 ```
