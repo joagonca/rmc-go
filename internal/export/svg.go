@@ -13,6 +13,7 @@ const (
 	ScreenHeight = 1872
 	ScreenDPI    = 226
 	Scale        = 72.0 / ScreenDPI
+	TextTopY     = -88.0 // Base Y offset for text
 )
 
 var lineHeights = map[rmscene.ParagraphStyle]float64{
@@ -27,8 +28,11 @@ var lineHeights = map[rmscene.ParagraphStyle]float64{
 
 // ExportToSVG exports a scene tree to SVG format
 func ExportToSVG(tree *rmscene.SceneTree, w io.Writer) error {
-	// Calculate bounding box
-	xMin, xMax, yMin, yMax := getBoundingBox(tree.Root, make(map[rmscene.CrdtID]float64))
+	// Build anchor positions (including text-based anchors)
+	anchorPos := buildAnchorPos(tree.RootText)
+
+	// Calculate bounding box using the anchor positions
+	xMin, xMax, yMin, yMax := getBoundingBox(tree.Root, anchorPos)
 
 	width := scale(xMax - xMin + 1)
 	height := scale(yMax - yMin + 1)
@@ -40,8 +44,12 @@ func ExportToSVG(tree *rmscene.SceneTree, w io.Writer) error {
 
 	fmt.Fprintf(w, "\t<g id=\"p1\" style=\"display:inline\">\n")
 
-	// Draw content
-	anchorPos := buildAnchorPos(tree.RootText)
+	// Render RootText if it exists
+	if tree.RootText != nil {
+		drawText(tree.RootText, w, "\t\t")
+	}
+
+	// Draw content (use anchor positions without text for strokes)
 	drawGroup(tree.Root, w, anchorPos, "\t\t")
 
 	// Close
@@ -58,11 +66,61 @@ func scale(v float64) float64 {
 func buildAnchorPos(text *rmscene.Text) map[rmscene.CrdtID]float64 {
 	anchorPos := make(map[rmscene.CrdtID]float64)
 
-	// Special anchors
+	// Special anchors (hardcoded in Python too)
 	anchorPos[rmscene.CrdtID{Part1: 0, Part2: 281474976710654}] = 100
 	anchorPos[rmscene.CrdtID{Part1: 0, Part2: 281474976710655}] = 100
 
-	// TODO: Add text-based anchors when text is parsed
+	// Build anchors from text - we need to map EVERY character position
+	// because groups can anchor to specific character positions
+	if text != nil && text.Items != nil {
+		yOffset := TextTopY
+
+		// Process each text item
+		for _, item := range text.Items.Items {
+			if item.DeletedLength > 0 || item.Value == nil {
+				continue
+			}
+
+			str, ok := item.Value.(string)
+			if !ok {
+				continue
+			}
+
+			// Each character in the CRDT has its own ID
+			// The ItemID is the ID of the first character,
+			// and each subsequent character increments by 1
+			currentID := item.ItemID
+			for i, ch := range str {
+				// Calculate the CRDT ID for this character
+				charID := rmscene.CrdtID{
+					Part1: currentID.Part1,
+					Part2: currentID.Part2 + uint64(i),
+				}
+
+				// Look up the style for this character position
+				// For simplicity, use plain style for all lines except explicitly styled ones
+				// The reMarkable seems to use plain (70pt) line height for regular text
+				currentStyle := rmscene.StylePlain
+
+				// Only increment on newlines (not on the first character)
+				if ch == '\n' {
+					// Get line height for current style
+					lineHeight := lineHeights[currentStyle]
+					if lineHeight == 0 {
+						lineHeight = 70
+					}
+					yOffset += lineHeight
+
+					// Map this character's ID to its Y position
+					anchorPos[charID] = text.PosY + yOffset
+				} else if i == 0 {
+					// For the first character, just map it to current position
+					// without incrementing (we already incremented on the previous newline)
+					anchorPos[charID] = text.PosY + yOffset
+				}
+			}
+		}
+	}
 
 	return anchorPos
 }
@@ -134,6 +192,8 @@ func drawGroup(group *rmscene.Group, w io.Writer, anchorPos map[rmscene.CrdtID]f
 				drawGroup(v, w, anchorPos, indent+"\t")
 			case *rmscene.Line:
 				drawStroke(v, w, indent+"\t")
+			case *rmscene.Text:
+				drawText(v, w, indent+"\t")
 			}
 		}
 	}
@@ -182,4 +242,101 @@ func drawStroke(line *rmscene.Line, w io.Writer, indent string) {
 	}
 
 	fmt.Fprintf(w, "\" />\n")
+}
+
+func drawText(text *rmscene.Text, w io.Writer, indent string) {
+	// Convert text to TextDocument
+	doc, err := rmscene.BuildTextDocument(text)
+	if err != nil {
+		return
+	}
+
+	// Write opening group tag
+	fmt.Fprintf(w, "%s<g class=\"root-text\" style=\"display:inline\">\n", indent)
+
+	// Write CSS style block
+	writeTextStyles(w, indent+"\t")
+
+	// Iterate through paragraphs
+	yOffset := TextTopY
+	for _, p := range doc.Paragraphs {
+		// Get line height for this style
+		lineHeight := lineHeights[p.Style]
+		if lineHeight == 0 {
+			lineHeight = 70 // default
+		}
+		yOffset += lineHeight
+
+		// Calculate position
+		xPos := text.PosX
+		yPos := text.PosY + yOffset
+
+		// Get CSS class name
+		className := getStyleClassName(p.Style)
+
+		// Write text element (skip empty lines as they just add spacing)
+		trimmedText := p.Text // Don't trim - preserve spacing
+		if trimmedText != "" {
+			fmt.Fprintf(w, "%s<text x=\"%.3f\" y=\"%.3f\" class=\"%s\">%s</text>\n",
+				indent+"\t", scale(xPos), scale(yPos), className, htmlEscape(trimmedText))
+		}
+	}
+
+	// Close group
+	fmt.Fprintf(w, "%s</g>\n", indent)
+}
+
+func writeTextStyles(w io.Writer, indent string) {
+	fmt.Fprintf(w, "%s<style>\n", indent)
+	fmt.Fprintf(w, "%s\ttext.heading { font: 14pt serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.bold { font: 8pt sans-serif; font-weight: bold; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext, text.plain { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.bullet { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.bullet2 { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.checkbox { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s\ttext.checkbox-checked { font: 7pt sans-serif; }\n", indent)
+	fmt.Fprintf(w, "%s</style>\n", indent)
+}
+
+func getStyleClassName(style rmscene.ParagraphStyle) string {
+	switch style {
+	case rmscene.StyleHeading:
+		return "heading"
+	case rmscene.StyleBold:
+		return "bold"
+	case rmscene.StylePlain:
+		return "plain"
+	case rmscene.StyleBullet:
+		return "bullet"
+	case rmscene.StyleBullet2:
+		return "bullet2"
+	case rmscene.StyleCheckbox:
+		return "checkbox"
+	case rmscene.StyleCheckboxChecked:
+		return "checkbox-checked"
+	default:
+		return "plain"
+	}
+}
+
+func htmlEscape(s string) string {
+	// Escape HTML special characters
+	result := ""
+	for _, ch := range s {
+		switch ch {
+		case '&':
+			result += "&amp;"
+		case '<':
+			result += "&lt;"
+		case '>':
+			result += "&gt;"
+		case '"':
+			result += "&quot;"
+		case '\'':
+			result += "&#39;"
+		default:
+			result += string(ch)
+		}
+	}
+	return result
 }
