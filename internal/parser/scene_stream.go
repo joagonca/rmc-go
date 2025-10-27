@@ -106,27 +106,27 @@ func (st *SceneTree) processBlock(reader *TaggedBlockReader, blockInfo *BlockInf
 func (st *SceneTree) readSceneTreeBlock(reader *TaggedBlockReader) error {
 	treeID, err := reader.ReadID(1)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read tree ID: %w", err)
 	}
 
 	_, err = reader.ReadID(2) // nodeID - not currently used
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read node ID: %w", err)
 	}
 
 	_, err = reader.ReadBool(3) // isUpdate
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read isUpdate flag: %w", err)
 	}
 
 	_, err = reader.ReadSubblock(4)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read subblock 4: %w", err)
 	}
 
 	parentID, err := reader.ReadID(1)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read parent ID: %w", err)
 	}
 
 	// The tree_id is the ID of the node to create/add
@@ -332,7 +332,7 @@ func (st *SceneTree) readSceneLineItemBlock(reader *TaggedBlockReader, version u
 
 		line, err = readLine(reader, version)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read line: %w", err)
 		}
 	}
 
@@ -359,32 +359,36 @@ func (st *SceneTree) readSceneLineItemBlock(reader *TaggedBlockReader, version u
 	return nil
 }
 
-// readLine reads a line (stroke) from the stream
-func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
-	toolID, err := reader.ReadInt(1)
+// readLineMetadata reads the basic line metadata (tool, color, thickness, length)
+func readLineMetadata(reader *TaggedBlockReader) (toolID, colorID uint32, thicknessScale float64, startingLength float32, err error) {
+	toolID, err = reader.ReadInt(1)
 	if err != nil {
-		return nil, err
+		return 0, 0, 0, 0, fmt.Errorf("failed to read tool ID: %w", err)
 	}
 
-	colorID, err := reader.ReadInt(2)
+	colorID, err = reader.ReadInt(2)
 	if err != nil {
-		return nil, err
+		return 0, 0, 0, 0, fmt.Errorf("failed to read color ID: %w", err)
 	}
 
-	thicknessScale, err := reader.ReadDouble(3)
+	thicknessScale, err = reader.ReadDouble(3)
 	if err != nil {
-		return nil, err
+		return 0, 0, 0, 0, fmt.Errorf("failed to read thickness scale: %w", err)
 	}
 
-	startingLength, err := reader.ReadFloat(4)
+	startingLength, err = reader.ReadFloat(4)
 	if err != nil {
-		return nil, err
+		return 0, 0, 0, 0, fmt.Errorf("failed to read starting length: %w", err)
 	}
 
-	// Read points
+	return toolID, colorID, thicknessScale, startingLength, nil
+}
+
+// readLinePoints reads all points for a line from the stream
+func readLinePoints(reader *TaggedBlockReader, version uint8) ([]Point, error) {
 	subblockLen, err := reader.ReadSubblock(5)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read points subblock: %w", err)
 	}
 
 	pointSize := PointSizeV2
@@ -396,11 +400,10 @@ func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
 	extraBytesInSubblock := int(subblockLen) % pointSize
 
 	points := make([]Point, numPoints)
-
 	for i := 0; i < numPoints; i++ {
 		point, err := readPoint(reader.data, version)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read point %d: %w", i, err)
 		}
 		points[i] = point
 	}
@@ -411,10 +414,58 @@ func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
 		fmt.Printf("Debug: Extra bytes in points subblock: %v\n", extra)
 	}
 
+	return points, nil
+}
+
+// parseColorOverride checks for and parses optional RGBA color override data
+func parseColorOverride(reader *TaggedBlockReader) (uint32, bool) {
+	remaining := reader.RemainingInBlock()
+	if remaining < 6 {
+		return 0, false
+	}
+
+	// Read 2-byte prefix
+	_, err := reader.data.ReadBytes(2)
+	if err != nil {
+		return 0, false
+	}
+
+	// Read RGBA color (BGRA order in file)
+	b, errB := reader.data.ReadUint8()
+	g, errG := reader.data.ReadUint8()
+	r, errR := reader.data.ReadUint8()
+	a, errA := reader.data.ReadUint8()
+
+	if errB != nil || errG != nil || errR != nil || errA != nil {
+		return 0, false
+	}
+
+	rgba := RGBA{R: r, G: g, B: b, A: a}
+	if mappedColor, exists := HardcodedColorMap[rgba]; exists {
+		return uint32(mappedColor), true
+	}
+
+	return 0, false
+}
+
+// readLine reads a line (stroke) from the stream
+func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
+	// Read basic metadata
+	toolID, colorID, thicknessScale, startingLength, err := readLineMetadata(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read all points
+	points, err := readLinePoints(reader, version)
+	if err != nil {
+		return nil, err
+	}
+
 	// Read timestamp (unused)
 	_, err = reader.ReadID(6)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read timestamp: %w", err)
 	}
 
 	// Try to read move_id (optional)
@@ -426,26 +477,9 @@ func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
 		}
 	}
 
-	// Check if there are additional bytes for color data (highlight/shader colors)
-	remaining := reader.RemainingInBlock()
-
-	if remaining >= 6 {
-		// Read 2-byte prefix
-		_, err := reader.data.ReadBytes(2)
-		if err == nil {
-			// Read RGBA color (BGRA order in file)
-			b, errB := reader.data.ReadUint8()
-			g, errG := reader.data.ReadUint8()
-			r, errR := reader.data.ReadUint8()
-			a, errA := reader.data.ReadUint8()
-
-			if errB == nil && errG == nil && errR == nil && errA == nil {
-				rgba := RGBA{R: r, G: g, B: b, A: a}
-				if mappedColor, exists := HardcodedColorMap[rgba]; exists {
-					colorID = uint32(mappedColor)
-				}
-			}
-		}
+	// Check for color override (highlight/shader colors)
+	if overrideColorID, hasOverride := parseColorOverride(reader); hasOverride {
+		colorID = overrideColorID
 	}
 
 	return &Line{
@@ -533,87 +567,117 @@ func readPoint(ds *DataStream, version uint8) (Point, error) {
 	}, nil
 }
 
-// readRootTextBlock reads the root text block
-func (st *SceneTree) readRootTextBlock(reader *TaggedBlockReader) error {
-	blockID, err := reader.ReadID(1)
+// readTextItems reads all text items from a CRDT sequence
+func readTextItems(reader *TaggedBlockReader) (*CrdtSequence, error) {
+	// Navigate to text items section
+	_, err := reader.ReadSubblock(1)
 	if err != nil {
-		return err
-	}
-	_ = blockID
-
-	_, err = reader.ReadSubblock(2)
-	if err != nil {
-		return err
-	}
-
-	// Text items
-	_, err = reader.ReadSubblock(1)
-	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to read text items subblock 1: %w", err)
 	}
 
 	_, err = reader.ReadSubblock(1)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to read text items subblock 2: %w", err)
 	}
 
 	numTextItems, err := reader.data.ReadVarUint()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to read number of text items: %w", err)
 	}
 
 	textItems := NewCrdtSequence()
 	for i := 0; i < int(numTextItems); i++ {
 		item, err := readTextItem(reader)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to read text item %d: %w", i, err)
 		}
 		textItems.Add(item)
 	}
 
-	// Formatting
-	_, err = reader.ReadSubblock(2)
+	return textItems, nil
+}
+
+// readTextFormatting reads paragraph style formatting information
+func readTextFormatting(reader *TaggedBlockReader) (map[CrdtID]LwwValue[ParagraphStyle], error) {
+	_, err := reader.ReadSubblock(2)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to read formatting subblock 1: %w", err)
 	}
 
 	_, err = reader.ReadSubblock(1)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to read formatting subblock 2: %w", err)
 	}
 
 	numFormats, err := reader.data.ReadVarUint()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to read number of formats: %w", err)
 	}
 
 	styles := make(map[CrdtID]LwwValue[ParagraphStyle])
 	for i := 0; i < int(numFormats); i++ {
 		charID, style, err := readTextFormat(reader)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to read text format %d: %w", i, err)
 		}
 		styles[charID] = style
 	}
 
-	// Position
+	return styles, nil
+}
+
+// readTextPosition reads the position and width of the text block
+func readTextPosition(reader *TaggedBlockReader) (posX, posY float64, width float32, err error) {
 	_, err = reader.ReadSubblock(3)
 	if err != nil {
-		return err
+		return 0, 0, 0, fmt.Errorf("failed to read position subblock: %w", err)
 	}
 
-	posX, err := reader.data.ReadFloat64()
+	posX, err = reader.data.ReadFloat64()
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to read posX: %w", err)
+	}
+
+	posY, err = reader.data.ReadFloat64()
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to read posY: %w", err)
+	}
+
+	width, err = reader.ReadFloat(4)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to read width: %w", err)
+	}
+
+	return posX, posY, width, nil
+}
+
+// readRootTextBlock reads the root text block
+func (st *SceneTree) readRootTextBlock(reader *TaggedBlockReader) error {
+	blockID, err := reader.ReadID(1)
+	if err != nil {
+		return fmt.Errorf("failed to read block ID: %w", err)
+	}
+	_ = blockID
+
+	_, err = reader.ReadSubblock(2)
+	if err != nil {
+		return fmt.Errorf("failed to read root text subblock: %w", err)
+	}
+
+	// Read text items
+	textItems, err := readTextItems(reader)
 	if err != nil {
 		return err
 	}
 
-	posY, err := reader.data.ReadFloat64()
+	// Read formatting
+	styles, err := readTextFormatting(reader)
 	if err != nil {
 		return err
 	}
 
-	// Width
-	width, err := reader.ReadFloat(4)
+	// Read position and width
+	posX, posY, width, err := readTextPosition(reader)
 	if err != nil {
 		return err
 	}

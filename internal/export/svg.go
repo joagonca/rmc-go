@@ -35,6 +35,13 @@ var lineHeights = map[parser.ParagraphStyle]float64{
 
 // ExportToSVG exports a scene tree to SVG format
 func ExportToSVG(tree *parser.SceneTree, w io.Writer) error {
+	if tree == nil {
+		return fmt.Errorf("scene tree cannot be nil")
+	}
+	if tree.Root == nil {
+		return fmt.Errorf("scene tree root cannot be nil")
+	}
+
 	// Build anchor positions (including text-based anchors)
 	anchorPos := buildAnchorPos(tree.RootText)
 

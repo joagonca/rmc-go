@@ -23,8 +23,11 @@ func ExportToPDF(tree *parser.SceneTree, w io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp SVG file: %w", err)
 	}
-	defer os.Remove(svgFile.Name())
-	defer svgFile.Close()
+	// Ensure cleanup happens in correct order: close before remove
+	defer func() {
+		svgFile.Close()
+		os.Remove(svgFile.Name())
+	}()
 
 	if _, err := svgFile.Write(svgBuf.Bytes()); err != nil {
 		return fmt.Errorf("failed to write SVG: %w", err)
@@ -35,18 +38,22 @@ func ExportToPDF(tree *parser.SceneTree, w io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp PDF file: %w", err)
 	}
-	defer os.Remove(pdfFile.Name())
 	pdfName := pdfFile.Name()
 	pdfFile.Close()
+	// Remove PDF temp file after we're done reading it
+	defer os.Remove(pdfName)
 
 	// Try to convert with inkscape
 	cmd := exec.Command("inkscape", svgFile.Name(), "--export-filename", pdfName)
-	if err := cmd.Run(); err != nil {
+	var cmdErr error
+	if cmdErr = cmd.Run(); cmdErr != nil {
 		// Try macOS path
 		cmd = exec.Command("/Applications/Inkscape.app/Contents/MacOS/inkscape",
 			svgFile.Name(), "--export-filename", pdfName)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("inkscape not found or conversion failed: %w", err)
+		if cmdErr = cmd.Run(); cmdErr != nil {
+			return fmt.Errorf("inkscape conversion failed (is Inkscape installed?): %w\n"+
+				"  Install Inkscape from: https://inkscape.org/release/\n"+
+				"  Or use SVG output with: -t svg", cmdErr)
 		}
 	}
 
