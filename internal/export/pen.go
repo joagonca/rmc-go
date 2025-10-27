@@ -143,11 +143,11 @@ func (p *pen) getSegmentColor(point parser.Point, lastWidth float64) string {
 		speed := float64(point.Speed) / 4.0
 		pressure := float64(point.Pressure) / 255.0
 		intensity := math.Pow(pressure, 1.5) - 0.2*(speed/50.0)
-		intensity = 1.5 * clamp(intensity)
-		revIntensity := math.Abs(intensity - 1)
-		r := int(revIntensity * float64(255-p.baseColor.R))
-		g := int(revIntensity * float64(255-p.baseColor.G))
-		b := int(revIntensity * float64(255-p.baseColor.B))
+		intensity = clamp(intensity)
+		// Apply intensity to darken/lighten the base color
+		r := int(float64(p.baseColor.R) * intensity)
+		g := int(float64(p.baseColor.G) * intensity)
+		b := int(float64(p.baseColor.B) * intensity)
 		return fmt.Sprintf("rgb(%d,%d,%d)", r, g, b)
 
 	default:
