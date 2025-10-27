@@ -2,6 +2,7 @@ package export
 
 import (
 	"fmt"
+	"html"
 	"io"
 	"math"
 
@@ -9,11 +10,17 @@ import (
 )
 
 const (
-	ScreenWidth  = 1404
-	ScreenHeight = 1872
-	ScreenDPI    = 226
+	// reMarkable tablet screen specifications
+	ScreenWidth  = 1404 // reMarkable screen width in pixels
+	ScreenHeight = 1872 // reMarkable screen height in pixels
+	ScreenDPI    = 226  // reMarkable screen DPI
 	Scale        = 72.0 / ScreenDPI
-	TextTopY     = -88.0 // Base Y offset for text
+	TextTopY     = -88.0 // Base Y offset for text from top
+
+	// Special anchor IDs (hardcoded in reMarkable v6 format)
+	SpecialAnchorID1  = 281474976710654 // 2^48 - 2
+	SpecialAnchorID2  = 281474976710655 // 2^48 - 1
+	SpecialAnchorYPos = 100.0           // Y position for special anchors
 )
 
 var lineHeights = map[parser.ParagraphStyle]float64{
@@ -28,6 +35,13 @@ var lineHeights = map[parser.ParagraphStyle]float64{
 
 // ExportToSVG exports a scene tree to SVG format
 func ExportToSVG(tree *parser.SceneTree, w io.Writer) error {
+	if tree == nil {
+		return fmt.Errorf("scene tree cannot be nil")
+	}
+	if tree.Root == nil {
+		return fmt.Errorf("scene tree root cannot be nil")
+	}
+
 	// Build anchor positions (including text-based anchors)
 	anchorPos := buildAnchorPos(tree.RootText)
 
@@ -46,11 +60,15 @@ func ExportToSVG(tree *parser.SceneTree, w io.Writer) error {
 
 	// Render RootText if it exists
 	if tree.RootText != nil {
-		drawText(tree.RootText, w, "\t\t")
+		if err := drawText(tree.RootText, w, "\t\t"); err != nil {
+			return fmt.Errorf("failed to draw root text: %w", err)
+		}
 	}
 
 	// Draw content (use anchor positions without text for strokes)
-	drawGroup(tree.Root, w, anchorPos, "\t\t")
+	if err := drawGroup(tree.Root, w, anchorPos, "\t\t"); err != nil {
+		return fmt.Errorf("failed to draw group: %w", err)
+	}
 
 	// Close
 	fmt.Fprintf(w, "\t</g>\n")
@@ -66,9 +84,9 @@ func scale(v float64) float64 {
 func buildAnchorPos(text *parser.Text) map[parser.CrdtID]float64 {
 	anchorPos := make(map[parser.CrdtID]float64)
 
-	// Special anchors (hardcoded in Python too)
-	anchorPos[parser.CrdtID{Part1: 0, Part2: 281474976710654}] = 100
-	anchorPos[parser.CrdtID{Part1: 0, Part2: 281474976710655}] = 100
+	// Special anchors (hardcoded in reMarkable v6 format specification)
+	anchorPos[parser.CrdtID{Part1: 0, Part2: SpecialAnchorID1}] = SpecialAnchorYPos
+	anchorPos[parser.CrdtID{Part1: 0, Part2: SpecialAnchorID2}] = SpecialAnchorYPos
 
 	// Build anchors from text - we need to map EVERY character position
 	// because groups can anchor to specific character positions
@@ -176,7 +194,7 @@ func getAnchor(group *parser.Group, anchorPos map[parser.CrdtID]float64) (float6
 	return anchorX, anchorY
 }
 
-func drawGroup(group *parser.Group, w io.Writer, anchorPos map[parser.CrdtID]float64, indent string) {
+func drawGroup(group *parser.Group, w io.Writer, anchorPos map[parser.CrdtID]float64, indent string) error {
 	anchorX, anchorY := getAnchor(group, anchorPos)
 	fmt.Fprintf(w, "%s<g id=\"%s\" transform=\"translate(%.3f, %.3f)\">\n",
 		indent, group.NodeID, scale(anchorX), scale(anchorY))
@@ -189,16 +207,21 @@ func drawGroup(group *parser.Group, w io.Writer, anchorPos map[parser.CrdtID]flo
 
 			switch v := item.Value.(type) {
 			case *parser.Group:
-				drawGroup(v, w, anchorPos, indent+"\t")
+				if err := drawGroup(v, w, anchorPos, indent+"\t"); err != nil {
+					return err
+				}
 			case *parser.Line:
 				drawStroke(v, w, indent+"\t")
 			case *parser.Text:
-				drawText(v, w, indent+"\t")
+				if err := drawText(v, w, indent+"\t"); err != nil {
+					return err
+				}
 			}
 		}
 	}
 
 	fmt.Fprintf(w, "%s</g>\n", indent)
+	return nil
 }
 
 func drawStroke(line *parser.Line, w io.Writer, indent string) {
@@ -244,11 +267,11 @@ func drawStroke(line *parser.Line, w io.Writer, indent string) {
 	fmt.Fprintf(w, "\" />\n")
 }
 
-func drawText(text *parser.Text, w io.Writer, indent string) {
+func drawText(text *parser.Text, w io.Writer, indent string) error {
 	// Convert text to TextDocument
 	doc, err := parser.BuildTextDocument(text)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to build text document: %w", err)
 	}
 
 	// Write opening group tag
@@ -284,6 +307,7 @@ func drawText(text *parser.Text, w io.Writer, indent string) {
 
 	// Close group
 	fmt.Fprintf(w, "%s</g>\n", indent)
+	return nil
 }
 
 func writeTextStyles(w io.Writer, indent string) {
@@ -320,23 +344,6 @@ func getStyleClassName(style parser.ParagraphStyle) string {
 }
 
 func htmlEscape(s string) string {
-	// Escape HTML special characters
-	result := ""
-	for _, ch := range s {
-		switch ch {
-		case '&':
-			result += "&amp;"
-		case '<':
-			result += "&lt;"
-		case '>':
-			result += "&gt;"
-		case '"':
-			result += "&quot;"
-		case '\'':
-			result += "&#39;"
-		default:
-			result += string(ch)
-		}
-	}
-	return result
+	// Use standard library for proper HTML escaping
+	return html.EscapeString(s)
 }

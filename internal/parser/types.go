@@ -208,6 +208,16 @@ type Group struct {
 	AnchorOriginX   *LwwValue[float32]
 }
 
+// NewEmptyGroup creates a new empty group with default values
+func NewEmptyGroup(id CrdtID) *Group {
+	return &Group{
+		NodeID:   id,
+		Children: NewCrdtSequence(),
+		Label:    LwwValue[string]{Timestamp: CrdtID{}, Value: ""},
+		Visible:  LwwValue[bool]{Timestamp: CrdtID{}, Value: true},
+	}
+}
+
 // CrdtSequenceItem represents an item in a CRDT sequence
 type CrdtSequenceItem struct {
 	ItemID        CrdtID
