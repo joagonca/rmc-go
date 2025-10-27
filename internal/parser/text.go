@@ -58,11 +58,9 @@ func BuildTextDocument(text *Text) (*TextDocument, error) {
 	// Split by newlines to get paragraphs
 	lines := strings.Split(fullText, "\n")
 
-	// Get default style (usually mapped to CrdtID(0, 0))
+	// Default style is always plain - CrdtID(0, 0) is just a placeholder
+	// and shouldn't be used as the default for all text
 	defaultStyle := StylePlain
-	if styleValue, exists := text.Styles[CrdtID{Part1: 0, Part2: 0}]; exists {
-		defaultStyle = styleValue.Value
-	}
 
 	// Build paragraphs
 	doc := &TextDocument{
@@ -71,20 +69,66 @@ func BuildTextDocument(text *Text) (*TextDocument, error) {
 
 	charPos := 0
 	for i, line := range lines {
-		// Determine style for this paragraph
-		// The style at CrdtID(0, 0) applies to the first paragraph only
-		// Rest default to plain style
-		paraStyle := StylePlain
+		// Find the item ID that corresponds to the start of this line
+		// But for styling purposes, we need the ID of the previous newline character
+		// (or for the first line, the ID of the first character)
+		var styleID CrdtID
+		var startID CrdtID
+		styleFound := false
+		startFound := false
+
 		if i == 0 {
-			paraStyle = defaultStyle
+			// First line: use the first item's ID
+			if len(itemStarts) > 0 {
+				startID = itemStarts[0].itemID
+				styleID = startID
+				styleFound = true
+				startFound = true
+			}
+		} else {
+			// For subsequent lines, the style is determined by the newline character
+			// that ended the previous line (charPos - 1)
+			styleCharPos := charPos - 1
+
+			// Find the CRDT ID for both positions
+			for j, is := range itemStarts {
+				// Check if the style position (newline) is within this item's range
+				itemEnd := len(fullText)
+				if j+1 < len(itemStarts) {
+					itemEnd = itemStarts[j+1].start
+				}
+
+				if !styleFound && is.start <= styleCharPos && styleCharPos < itemEnd {
+					offset := styleCharPos - is.start
+					styleID = CrdtID{
+						Part1: is.itemID.Part1,
+						Part2: is.itemID.Part2 + uint64(offset),
+					}
+					styleFound = true
+				}
+
+				// Get startID for the current line start
+				if !startFound && is.start <= charPos && charPos < itemEnd {
+					offset := charPos - is.start
+					startID = CrdtID{
+						Part1: is.itemID.Part1,
+						Part2: is.itemID.Part2 + uint64(offset),
+					}
+					startFound = true
+				}
+
+				if styleFound && startFound {
+					break
+				}
+			}
 		}
 
-		// Find the item ID that corresponds to the start of this line
-		startID := CrdtID{Part1: 0, Part2: uint64(i)} // Default fallback
-		for _, is := range itemStarts {
-			if is.start <= charPos && charPos < is.start+len(line)+1 {
-				startID = is.itemID
-				break
+		// Determine style for this paragraph by looking it up in the styles map
+		// Each line's style is determined by the CRDT ID of the newline before it
+		paraStyle := defaultStyle
+		if styleFound {
+			if styleValue, exists := text.Styles[styleID]; exists {
+				paraStyle = styleValue.Value
 			}
 		}
 
@@ -136,6 +180,8 @@ func GetStyleName(style ParagraphStyle) string {
 		return "checkbox"
 	case StyleCheckboxChecked:
 		return "checkbox-checked"
+	case StyleNumbered:
+		return "numbered"
 	default:
 		return fmt.Sprintf("unknown-%d", style)
 	}
