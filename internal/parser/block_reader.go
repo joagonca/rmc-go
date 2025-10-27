@@ -201,99 +201,48 @@ func (tbr *TaggedBlockReader) ReadDouble(index int) (float64, error) {
 	return tbr.data.ReadFloat64()
 }
 
-// ReadLwwBool reads a last-write-wins bool
-func (tbr *TaggedBlockReader) ReadLwwBool(index int) (LwwValue[bool], error) {
+// readLww is a generic helper function for reading Last-Write-Wins values
+func readLww[T any](tbr *TaggedBlockReader, index int, readFn func(int) (T, error)) (LwwValue[T], error) {
 	if _, err := tbr.ReadSubblock(index); err != nil {
-		return LwwValue[bool]{}, err
+		return LwwValue[T]{}, err
 	}
 
 	timestamp, err := tbr.ReadID(1)
 	if err != nil {
-		return LwwValue[bool]{}, err
+		return LwwValue[T]{}, err
 	}
 
-	value, err := tbr.ReadBool(2)
+	value, err := readFn(2)
 	if err != nil {
-		return LwwValue[bool]{}, err
+		return LwwValue[T]{}, err
 	}
 
-	return LwwValue[bool]{Timestamp: timestamp, Value: value}, nil
+	return LwwValue[T]{Timestamp: timestamp, Value: value}, nil
+}
+
+// ReadLwwBool reads a last-write-wins bool
+func (tbr *TaggedBlockReader) ReadLwwBool(index int) (LwwValue[bool], error) {
+	return readLww(tbr, index, tbr.ReadBool)
 }
 
 // ReadLwwByte reads a last-write-wins byte
 func (tbr *TaggedBlockReader) ReadLwwByte(index int) (LwwValue[uint8], error) {
-	if _, err := tbr.ReadSubblock(index); err != nil {
-		return LwwValue[uint8]{}, err
-	}
-
-	timestamp, err := tbr.ReadID(1)
-	if err != nil {
-		return LwwValue[uint8]{}, err
-	}
-
-	value, err := tbr.ReadByte(2)
-	if err != nil {
-		return LwwValue[uint8]{}, err
-	}
-
-	return LwwValue[uint8]{Timestamp: timestamp, Value: value}, nil
+	return readLww(tbr, index, tbr.ReadByte)
 }
 
 // ReadLwwFloat reads a last-write-wins float
 func (tbr *TaggedBlockReader) ReadLwwFloat(index int) (LwwValue[float32], error) {
-	if _, err := tbr.ReadSubblock(index); err != nil {
-		return LwwValue[float32]{}, err
-	}
-
-	timestamp, err := tbr.ReadID(1)
-	if err != nil {
-		return LwwValue[float32]{}, err
-	}
-
-	value, err := tbr.ReadFloat(2)
-	if err != nil {
-		return LwwValue[float32]{}, err
-	}
-
-	return LwwValue[float32]{Timestamp: timestamp, Value: value}, nil
+	return readLww(tbr, index, tbr.ReadFloat)
 }
 
 // ReadLwwID reads a last-write-wins ID
 func (tbr *TaggedBlockReader) ReadLwwID(index int) (LwwValue[CrdtID], error) {
-	if _, err := tbr.ReadSubblock(index); err != nil {
-		return LwwValue[CrdtID]{}, err
-	}
-
-	timestamp, err := tbr.ReadID(1)
-	if err != nil {
-		return LwwValue[CrdtID]{}, err
-	}
-
-	value, err := tbr.ReadID(2)
-	if err != nil {
-		return LwwValue[CrdtID]{}, err
-	}
-
-	return LwwValue[CrdtID]{Timestamp: timestamp, Value: value}, nil
+	return readLww(tbr, index, tbr.ReadID)
 }
 
 // ReadLwwString reads a last-write-wins string
 func (tbr *TaggedBlockReader) ReadLwwString(index int) (LwwValue[string], error) {
-	if _, err := tbr.ReadSubblock(index); err != nil {
-		return LwwValue[string]{}, err
-	}
-
-	timestamp, err := tbr.ReadID(1)
-	if err != nil {
-		return LwwValue[string]{}, err
-	}
-
-	value, err := tbr.ReadString(2)
-	if err != nil {
-		return LwwValue[string]{}, err
-	}
-
-	return LwwValue[string]{Timestamp: timestamp, Value: value}, nil
+	return readLww(tbr, index, tbr.ReadString)
 }
 
 // ReadString reads a string block

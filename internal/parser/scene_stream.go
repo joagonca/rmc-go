@@ -19,6 +19,10 @@ const (
 	BlockTypeAuthorIDs      = 0x09
 	BlockTypePageInfo       = 0x0A
 	BlockTypeSceneInfo      = 0x0D
+
+	// Point structure sizes for different versions
+	PointSizeV2 = 0x0E // 14 bytes per point (version 2)
+	PointSizeV1 = 0x18 // 24 bytes per point (version 1)
 )
 
 // SceneTree represents the complete scene with all layers and content
@@ -31,12 +35,7 @@ type SceneTree struct {
 // NewSceneTree creates a new empty scene tree
 func NewSceneTree() *SceneTree {
 	rootID := CrdtID{Part1: 0, Part2: 1}
-	root := &Group{
-		NodeID:   rootID,
-		Children: NewCrdtSequence(),
-		Label:    LwwValue[string]{Timestamp: CrdtID{}, Value: ""},
-		Visible:  LwwValue[bool]{Timestamp: CrdtID{}, Value: true},
-	}
+	root := NewEmptyGroup(rootID)
 
 	return &SceneTree{
 		Root:  root,
@@ -133,22 +132,12 @@ func (st *SceneTree) readSceneTreeBlock(reader *TaggedBlockReader) error {
 	// The tree_id is the ID of the node to create/add
 	// Create node with tree_id if it doesn't exist
 	if _, exists := st.Nodes[treeID]; !exists {
-		st.Nodes[treeID] = &Group{
-			NodeID:   treeID,
-			Children: NewCrdtSequence(),
-			Label:    LwwValue[string]{Timestamp: CrdtID{}, Value: ""},
-			Visible:  LwwValue[bool]{Timestamp: CrdtID{}, Value: true},
-		}
+		st.Nodes[treeID] = NewEmptyGroup(treeID)
 	}
 
 	// Create parent if it doesn't exist
 	if _, exists := st.Nodes[parentID]; !exists {
-		st.Nodes[parentID] = &Group{
-			NodeID:   parentID,
-			Children: NewCrdtSequence(),
-			Label:    LwwValue[string]{Timestamp: CrdtID{}, Value: ""},
-			Visible:  LwwValue[bool]{Timestamp: CrdtID{}, Value: true},
-		}
+		st.Nodes[parentID] = NewEmptyGroup(parentID)
 	}
 
 	// Add tree_id node to parent
@@ -279,24 +268,14 @@ func (st *SceneTree) readSceneGroupItemBlock(reader *TaggedBlockReader) error {
 	parent, exists := st.Nodes[parentID]
 	if !exists {
 		// Create parent if it doesn't exist
-		parent = &Group{
-			NodeID:   parentID,
-			Children: NewCrdtSequence(),
-			Label:    LwwValue[string]{Timestamp: CrdtID{}, Value: ""},
-			Visible:  LwwValue[bool]{Timestamp: CrdtID{}, Value: true},
-		}
+		parent = NewEmptyGroup(parentID)
 		st.Nodes[parentID] = parent
 	}
 
 	childNode, exists := st.Nodes[*nodeID]
 	if !exists {
 		// Create child if it doesn't exist
-		childNode = &Group{
-			NodeID:   *nodeID,
-			Children: NewCrdtSequence(),
-			Label:    LwwValue[string]{Timestamp: CrdtID{}, Value: ""},
-			Visible:  LwwValue[bool]{Timestamp: CrdtID{}, Value: true},
-		}
+		childNode = NewEmptyGroup(*nodeID)
 		st.Nodes[*nodeID] = childNode
 	}
 
@@ -365,12 +344,7 @@ func (st *SceneTree) readSceneLineItemBlock(reader *TaggedBlockReader, version u
 	parent, exists := st.Nodes[parentID]
 	if !exists {
 		// Create parent if it doesn't exist
-		parent = &Group{
-			NodeID:   parentID,
-			Children: NewCrdtSequence(),
-			Label:    LwwValue[string]{Timestamp: CrdtID{}, Value: ""},
-			Visible:  LwwValue[bool]{Timestamp: CrdtID{}, Value: true},
-		}
+		parent = NewEmptyGroup(parentID)
 		st.Nodes[parentID] = parent
 	}
 
@@ -413,9 +387,9 @@ func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
 		return nil, err
 	}
 
-	pointSize := 0x0E
+	pointSize := PointSizeV2
 	if version == 1 {
-		pointSize = 0x18
+		pointSize = PointSizeV1
 	}
 
 	numPoints := int(subblockLen) / pointSize

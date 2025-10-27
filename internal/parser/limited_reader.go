@@ -38,18 +38,28 @@ func (l *LimitedBufReader) Remaining() int64 {
 	return l.remaining
 }
 
-// Skip skips the remaining bytes
+// Skip skips the remaining bytes using chunked reading to avoid large allocations
 func (l *LimitedBufReader) Skip() error {
 	if l.remaining <= 0 {
 		return nil
 	}
 
-	buf := make([]byte, l.remaining)
-	_, err := io.ReadFull(l.reader, buf)
-	if err != nil {
-		return err
+	// Use chunked reading to prevent OOM on large blocks
+	const chunkSize = 8192 // 8KB chunks
+	buf := make([]byte, chunkSize)
+
+	for l.remaining > 0 {
+		readSize := l.remaining
+		if readSize > chunkSize {
+			readSize = chunkSize
+		}
+
+		n, err := io.ReadFull(l.reader, buf[:readSize])
+		l.remaining -= int64(n)
+		if err != nil {
+			return err
+		}
 	}
 
-	l.remaining = 0
 	return nil
 }
