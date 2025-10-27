@@ -418,16 +418,16 @@ func readLinePoints(reader *TaggedBlockReader, version uint8) ([]Point, error) {
 }
 
 // parseColorOverride checks for and parses optional RGBA color override data
-func parseColorOverride(reader *TaggedBlockReader) (uint32, bool) {
+func parseColorOverride(reader *TaggedBlockReader) (*RGBA, bool) {
 	remaining := reader.RemainingInBlock()
 	if remaining < 6 {
-		return 0, false
+		return nil, false
 	}
 
 	// Read 2-byte prefix
 	_, err := reader.data.ReadBytes(2)
 	if err != nil {
-		return 0, false
+		return nil, false
 	}
 
 	// Read RGBA color (BGRA order in file)
@@ -437,15 +437,11 @@ func parseColorOverride(reader *TaggedBlockReader) (uint32, bool) {
 	a, errA := reader.data.ReadUint8()
 
 	if errB != nil || errG != nil || errR != nil || errA != nil {
-		return 0, false
+		return nil, false
 	}
 
 	rgba := RGBA{R: r, G: g, B: b, A: a}
-	if mappedColor, exists := HardcodedColorMap[rgba]; exists {
-		return uint32(mappedColor), true
-	}
-
-	return 0, false
+	return &rgba, true
 }
 
 // readLine reads a line (stroke) from the stream
@@ -478,12 +474,14 @@ func readLine(reader *TaggedBlockReader, version uint8) (*Line, error) {
 	}
 
 	// Check for color override (highlight/shader colors)
-	if overrideColorID, hasOverride := parseColorOverride(reader); hasOverride {
-		colorID = overrideColorID
+	var colorOverride *RGBA
+	if rgba, hasOverride := parseColorOverride(reader); hasOverride {
+		colorOverride = rgba
 	}
 
 	return &Line{
 		Color:          PenColor(colorID),
+		ColorOverride:  colorOverride,
 		Tool:           Pen(toolID),
 		Points:         points,
 		ThicknessScale: thicknessScale,

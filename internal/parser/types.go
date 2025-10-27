@@ -84,27 +84,9 @@ const (
 	ColorShaderCyan    PenColor = 27
 )
 
-// RGBA represents an RGBA color
+// RGBA represents an RGBA color from the file
 type RGBA struct {
 	R, G, B, A uint8
-}
-
-// HardcodedColorMap maps RGBA values to specific pen colors
-var HardcodedColorMap = map[RGBA]PenColor{
-	{255, 237, 117, 255}: ColorHighlightYellow,
-	{190, 234, 254, 255}: ColorHighlightBlue,
-	{242, 158, 255, 255}: ColorHighlightPink,
-	{255, 186, 140, 255}: ColorHighlightOrange,
-	{186, 252, 159, 255}: ColorHighlightGreen,
-	{214, 214, 214, 255}: ColorHighlightGray,
-	{120, 120, 120, 255}: ColorShaderGray,
-	{234, 147, 72, 255}:  ColorShaderOrange,
-	{186, 97, 163, 255}:  ColorShaderMagenta,
-	{95, 129, 188, 255}:  ColorShaderBlue,
-	{187, 76, 76, 255}:   ColorShaderRed,
-	{112, 190, 132, 255}: ColorShaderGreen,
-	{229, 222, 97, 255}:  ColorShaderYellow,
-	{111, 203, 210, 255}: ColorShaderCyan,
 }
 
 // Pen represents different pen/tool types
@@ -163,6 +145,7 @@ type Point struct {
 // Line represents a drawn stroke
 type Line struct {
 	Color          PenColor
+	ColorOverride  *RGBA // RGBA color override from file (for highlights/shaders)
 	Tool           Pen
 	Points         []Point
 	ThicknessScale float64

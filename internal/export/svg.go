@@ -225,7 +225,7 @@ func drawGroup(group *parser.Group, w io.Writer, anchorPos map[parser.CrdtID]flo
 }
 
 func drawStroke(line *parser.Line, w io.Writer, indent string) {
-	pen := createPen(line.Tool, line.Color, line.ThicknessScale)
+	pen := createPen(line.Tool, line.Color, line.ColorOverride, line.ThicknessScale)
 
 	lastXPos := -1.0
 	lastYPos := -1.0

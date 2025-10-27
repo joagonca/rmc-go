@@ -26,24 +26,7 @@ var rmPalette = map[parser.PenColor]RGB{
 	parser.ColorCyan:        {139, 208, 229},
 	parser.ColorMagenta:     {183, 130, 205},
 	parser.ColorYellow2:     {247, 232, 81},
-
-	// Highlight colors
-	parser.ColorHighlightYellow: {255, 237, 117},
-	parser.ColorHighlightBlue:   {190, 234, 254},
-	parser.ColorHighlightPink:   {242, 158, 255},
-	parser.ColorHighlightOrange: {255, 186, 140},
-	parser.ColorHighlightGreen:  {186, 252, 159},
-	parser.ColorHighlightGray:   {214, 214, 214},
-
-	// Shader colors
-	parser.ColorShaderGray:    {120, 120, 120},
-	parser.ColorShaderOrange:  {234, 147, 72},
-	parser.ColorShaderMagenta: {186, 97, 163},
-	parser.ColorShaderBlue:    {95, 129, 188},
-	parser.ColorShaderRed:     {187, 76, 76},
-	parser.ColorShaderGreen:   {112, 190, 132},
-	parser.ColorShaderYellow:  {229, 222, 97},
-	parser.ColorShaderCyan:    {111, 203, 210},
+	// Note: Highlight and shader color variants are now read directly from .rm files as RGBA overrides
 }
 
 type pen struct {
@@ -57,10 +40,22 @@ type pen struct {
 	thicknessScale float64
 }
 
-func createPen(penType parser.Pen, color parser.PenColor, thicknessScale float64) *pen {
-	baseColor, ok := rmPalette[color]
-	if !ok {
-		baseColor = RGB{0, 0, 0}
+func createPen(penType parser.Pen, color parser.PenColor, colorOverride *parser.RGBA, thicknessScale float64) *pen {
+	var baseColor RGB
+
+	// Use color override if available (for highlights/shaders), otherwise use palette
+	if colorOverride != nil {
+		baseColor = RGB{
+			R: int(colorOverride.R),
+			G: int(colorOverride.G),
+			B: int(colorOverride.B),
+		}
+	} else {
+		var ok bool
+		baseColor, ok = rmPalette[color]
+		if !ok {
+			baseColor = RGB{0, 0, 0}
+		}
 	}
 
 	p := &pen{
