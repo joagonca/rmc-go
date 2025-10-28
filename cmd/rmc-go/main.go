@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ctw00272/rmc-go/internal/export"
-	"github.com/ctw00272/rmc-go/internal/parser"
+	"github.com/joagonca/rmc-go/internal/export"
+	"github.com/joagonca/rmc-go/internal/parser"
 	"github.com/spf13/cobra"
 )
 

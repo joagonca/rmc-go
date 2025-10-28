@@ -550,14 +550,14 @@ fmt.Fprintf(w, "</text>\n")
 
 ### Python rmc Reference Files
 
-1. **`/Users/ctw00272/Code/remarkable/rmc/src/rmc/exporters/svg.py`**
+1. **`./rmc/src/rmc/exporters/svg.py`**
    - Line 40: `LINE_HEIGHTS` dictionary
    - Line 82: `TEXT_TOP_Y = -88`
    - Line 112: `build_anchor_pos()` - builds text anchors
    - Line 251: `draw_text()` - main text rendering
    - Line 256: CSS style definitions
 
-2. **`/Users/ctw00272/Code/remarkable/rmc/src/rmc/exporters/markdown.py`**
+2. **`./rmc/src/rmc/exporters/markdown.py`**
    - Line 22: GlyphRange export example
 
 ### Constants and Magic Numbers

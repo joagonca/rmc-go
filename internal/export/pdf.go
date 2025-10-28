@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/ctw00272/rmc-go/internal/parser"
+	"github.com/joagonca/rmc-go/internal/parser"
 )
 
 // ExportToPDF exports a scene tree to PDF format

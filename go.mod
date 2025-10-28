@@ -1,4 +1,4 @@
-module github.com/ctw00272/rmc-go
+module github.com/joagonca/rmc-go
 
 go 1.25.1
 
