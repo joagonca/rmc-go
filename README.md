@@ -125,20 +125,23 @@ The project includes test `.rm` files in the `tests/` directory. Run `make test`
 ```
 rmc-go/
 ├── cmd/rmc-go/          # CLI application
-│   └── main.go
+│   └── main.go                # Main entry point with --native flag support
 ├── internal/
 │   ├── parser/          # v6 file format parser
 │   │   ├── datastream.go      # Binary data stream reader
 │   │   ├── block_reader.go    # Tagged block reader
+│   │   ├── limited_reader.go  # Limited reader utility
 │   │   ├── scene_stream.go    # Scene block parser
 │   │   ├── text.go            # Text document processing
 │   │   └── types.go           # Data structures
 │   └── export/          # Export functionality
 │       ├── svg.go             # SVG export
-│       ├── pen.go             # Pen rendering
-│       └── pdf.go             # PDF export (via SVG)
+│       ├── pen.go             # Pen rendering (shared by SVG/PDF)
+│       ├── pdf.go             # PDF export (Inkscape method)
+│       ├── pdf_cairo.go       # Native PDF export using Cairo (build tag: cairo)
+│       └── pdf_cairo_stub.go  # Stub for builds without Cairo
 ├── tests/               # Test .rm files
-├── Makefile             # Build automation
+├── Makefile             # Build automation (build, build-cairo targets)
 ├── go.mod
 └── README.md
 ```
@@ -158,8 +161,10 @@ This implementation:
 
 1. **Parses** the binary format using a DataStream and TaggedBlockReader
 2. **Builds** a scene tree with groups (layers) and items (strokes/text)
-3. **Exports** the scene tree to SVG, rendering strokes with appropriate pen styles
-4. **Converts** SVG to PDF using Inkscape
+3. **Exports** to output formats:
+   - **SVG**: Direct rendering of strokes and text with appropriate pen styles
+   - **PDF (Inkscape)**: Converts SVG to PDF using Inkscape
+   - **PDF (Native)**: Direct rendering to PDF using Cairo graphics library (requires `--native` flag and Cairo build)
 
 ## Supported Pen Types
 
