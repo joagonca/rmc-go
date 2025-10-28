@@ -11,6 +11,7 @@ This began as a port of the Python [rmc](https://github.com/ricklupton/rmc) tool
 - Export to PDF format
   - Default: via Inkscape (requires Inkscape installation)
   - Native: direct PDF rendering using Cairo (requires CGo build)
+- Multipage PDF support: combine multiple .rm files from a folder into a single PDF
 - Handles strokes/drawings with different pen types and colors
 - Support for all pen colors including highlights and shaders
 - Command-line interface
@@ -24,6 +25,8 @@ This began as a port of the Python [rmc](https://github.com/ricklupton/rmc) tool
 - **For PDF export (choose one):**
   - Inkscape (for default PDF export via SVG)
   - Cairo development libraries + pkg-config (for native PDF export with `--native` flag)
+- **For multipage PDF (Inkscape method only):**
+  - `pdfunite` (from poppler-utils) or `ghostscript` for merging PDFs
 
 ### Build from source
 
@@ -70,6 +73,19 @@ This creates the `rmc` binary with both Inkscape and native Cairo PDF export.
 ./rmc file.rm -o output.svg
 ```
 
+### Multipage PDF from folder
+
+```bash
+# Combine all .rm files in a folder into a single multipage PDF
+# Pages are ordered by file modification time (oldest first)
+./rmc folder/ -o output.pdf
+
+# With native Cairo renderer
+./rmc folder/ -o output.pdf --native
+```
+
+**Note:** Multipage output is only supported for PDF format. Attempting to export a folder to SVG will result in an error.
+
 ### Export to stdout
 
 ```bash
@@ -81,7 +97,7 @@ This creates the `rmc` binary with both Inkscape and native Cairo PDF export.
 
 ```
 Usage:
-  rmc [input.rm] [flags]
+  rmc [input.rm|folder] [flags]
 
 Flags:
   -h, --help            help for rmc
@@ -89,6 +105,10 @@ Flags:
   -o, --output string   Output file (default: stdout)
   -t, --type string     Output type: svg or pdf (default: guess from filename)
 ```
+
+**Input:**
+- Single `.rm` file: Exports the file to the specified format
+- Folder: Combines all `.rm` files in the folder into a multipage PDF (only PDF format supported)
 
 ## Development
 

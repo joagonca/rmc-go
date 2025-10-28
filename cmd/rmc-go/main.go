@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/joagonca/rmc-go/internal/export"
@@ -18,14 +19,15 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "rmc-go [input.rm]",
+	Use:   "rmc-go [input.rm|folder]",
 	Short: "Convert reMarkable v6 files to PDF/SVG",
 	Long: `rmc-go is a tool to convert reMarkable tablet v6 format files to PDF or SVG.
 
 Example usage:
   rmc-go file.rm -o output.pdf
   rmc-go file.rm -o output.svg
-  rmc-go file.rm -t pdf > output.pdf`,
+  rmc-go file.rm -t pdf > output.pdf
+  rmc-go folder/ -o output.pdf  # Multipage PDF from all .rm files in folder`,
 	Args: cobra.ExactArgs(1),
 	RunE: run,
 }
@@ -37,7 +39,13 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	inputFile := args[0]
+	inputPath := args[0]
+
+	// Check if input is a file or directory
+	info, err := os.Stat(inputPath)
+	if err != nil {
+		return fmt.Errorf("failed to access input path: %w", err)
+	}
 
 	// Determine output type
 	format := outputType
@@ -49,6 +57,16 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Handle directory input
+	if info.IsDir() {
+		return handleDirectory(inputPath, format)
+	}
+
+	// Handle single file input
+	return handleSingleFile(inputPath, format)
+}
+
+func handleSingleFile(inputFile string, format string) error {
 	// Open input file
 	f, err := os.Open(inputFile)
 	if err != nil {
@@ -89,6 +107,83 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func handleDirectory(inputDir string, format string) error {
+	// Validate that SVG output is not requested for folders
+	if strings.ToLower(format) == "svg" {
+		return fmt.Errorf("multipage output is only supported for PDF format, not SVG")
+	}
+
+	// Collect all .rm files from the directory
+	files, err := collectRmFiles(inputDir)
+	if err != nil {
+		return fmt.Errorf("failed to collect .rm files: %w", err)
+	}
+
+	if len(files) == 0 {
+		return fmt.Errorf("no .rm files found in directory: %s", inputDir)
+	}
+
+	// Sort files by modification time (oldest first)
+	sort.Slice(files, func(i, j int) bool {
+		infoI, _ := os.Stat(files[i])
+		infoJ, _ := os.Stat(files[j])
+		return infoI.ModTime().Before(infoJ.ModTime())
+	})
+
+	// Parse all .rm files into scene trees
+	var trees []*parser.SceneTree
+	for _, file := range files {
+		f, err := os.Open(file)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %w", file, err)
+		}
+		tree, err := parser.ReadSceneTree(f)
+		f.Close()
+		if err != nil {
+			return fmt.Errorf("failed to parse file %s: %w", file, err)
+		}
+		trees = append(trees, tree)
+	}
+
+	// Determine output writer
+	var out *os.File
+	if outputFile != "" {
+		out, err = os.Create(outputFile)
+		if err != nil {
+			return fmt.Errorf("failed to create output file: %w", err)
+		}
+		defer out.Close()
+	} else {
+		out = os.Stdout
+	}
+
+	// Export multipage PDF
+	if err := export.ExportToMultipagePDF(trees, out, useNative); err != nil {
+		return fmt.Errorf("failed to export multipage PDF: %w", err)
+	}
+
+	return nil
+}
+
+func collectRmFiles(dir string) ([]string, error) {
+	var files []string
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(strings.ToLower(entry.Name()), ".rm") {
+			files = append(files, filepath.Join(dir, entry.Name()))
+		}
+	}
+
+	return files, nil
 }
 
 func guessFormat(filename string) string {
