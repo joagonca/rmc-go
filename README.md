@@ -2,7 +2,7 @@
 
 A Go implementation for converting reMarkable tablet v6 format files (`.rm`) to PDF and SVG.
 
-This is a port of the Python [rmc](https://github.com/ricklupton/rmc) tool, which uses [rmscene](https://github.com/ricklupton/rmscene) to read the reMarkable v6 file format.
+This began as a port of the Python [rmc](https://github.com/ricklupton/rmc) tool, which uses [rmscene](https://github.com/ricklupton/rmscene) to read the reMarkable v6 file format, but was already extended in functionality.
 
 ## Features
 
