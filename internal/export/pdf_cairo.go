@@ -249,13 +249,13 @@ func setTextFontCairo(surface *cairo.Surface, style parser.ParagraphStyle) {
 	switch style {
 	case parser.StyleHeading:
 		surface.SelectFontFace("serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-		surface.SetFontSize(14 * Scale)
+		surface.SetFontSize(14.0)
 	case parser.StyleBold:
 		surface.SelectFontFace("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-		surface.SetFontSize(8 * Scale)
+		surface.SetFontSize(8.0)
 	default:
 		surface.SelectFontFace("sans-serif", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-		surface.SetFontSize(7 * Scale)
+		surface.SetFontSize(7.0)
 	}
 }
 
