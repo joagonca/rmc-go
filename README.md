@@ -8,7 +8,9 @@ This is a port of the Python [rmc](https://github.com/ricklupton/rmc) tool, whic
 
 - Read reMarkable v6 format files (software version 3+)
 - Export to SVG format
-- Export to PDF format (requires Inkscape)
+- Export to PDF format
+  - Default: via Inkscape (requires Inkscape installation)
+  - Native: direct PDF rendering using Cairo (requires CGo build)
 - Handles strokes/drawings with different pen types and colors
 - Support for all pen colors including highlights and shaders
 - Command-line interface
@@ -19,9 +21,13 @@ This is a port of the Python [rmc](https://github.com/ricklupton/rmc) tool, whic
 
 - Go 1.21 or later
 - Make (for building with Makefile)
-- Inkscape (optional, required for PDF export)
+- **For PDF export (choose one):**
+  - Inkscape (for default PDF export via SVG)
+  - Cairo development libraries + pkg-config (for native PDF export with `--native` flag)
 
 ### Build from source
+
+#### Standard build (without native PDF support)
 
 ```bash
 git clone <repository-url>
@@ -29,14 +35,33 @@ cd rmc-go
 make build
 ```
 
-This will create the `rmc` binary in the project root directory.
+This creates the `rmc` binary with Inkscape-based PDF export support.
+
+#### Build with native Cairo PDF support
+
+To enable the `--native` flag for direct PDF rendering:
+
+```bash
+# Install Cairo libraries first:
+# macOS: brew install cairo pkg-config
+# Ubuntu/Debian: sudo apt-get install libcairo2-dev
+# Fedora: sudo dnf install cairo-devel
+
+make build-cairo
+```
+
+This creates the `rmc` binary with both Inkscape and native Cairo PDF export.
 
 ## Usage
 
 ### Export to PDF
 
 ```bash
+# Default: using Inkscape (requires Inkscape installed)
 ./rmc file.rm -o output.pdf
+
+# Native: using Cairo (requires build-cairo)
+./rmc file.rm -o output.pdf --native
 ```
 
 ### Export to SVG
@@ -60,6 +85,7 @@ Usage:
 
 Flags:
   -h, --help            help for rmc
+      --native          Use native Cairo renderer for PDF export (requires CGo)
   -o, --output string   Output file (default: stdout)
   -t, --type string     Output type: svg or pdf (default: guess from filename)
 ```
@@ -71,8 +97,11 @@ Flags:
 Use the Makefile for all build operations:
 
 ```bash
-# Build the rmc binary
+# Build the rmc binary (without Cairo)
 make build
+
+# Build with native Cairo PDF support
+make build-cairo
 
 # Run integration tests with test files
 make test
@@ -159,6 +188,27 @@ This implementation:
 - Gray, Orange, Magenta, Blue, Red, Green, Yellow, Cyan
 
 All pen colors are rendered with accurate RGB values and appropriate opacity for highlighters and shaders.
+
+## PDF Export Methods
+
+This tool supports two methods for PDF export:
+
+### Inkscape Method (Default)
+
+- Converts to SVG first, then uses Inkscape to generate PDF
+- **Pros:** No CGo dependencies, easier to build and deploy
+- **Cons:** Requires Inkscape to be installed on the system
+- **Usage:** `./rmc file.rm -o output.pdf`
+
+### Native Cairo Method
+
+- Renders PDF directly using Cairo graphics library
+- **Pros:** No external dependencies at runtime, potentially faster
+- **Cons:** Requires CGo and Cairo libraries at build time
+- **Usage:** `./rmc file.rm -o output.pdf --native`
+- **Build:** `make build-cairo`
+
+Both methods produce equivalent PDF output with full support for all pen types, colors, and text rendering.
 
 ## Limitations
 

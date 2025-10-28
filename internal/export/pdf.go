@@ -10,8 +10,20 @@ import (
 	"github.com/ctw00272/rmc-go/internal/parser"
 )
 
-// ExportToPDF exports a scene tree to PDF format via SVG conversion
-func ExportToPDF(tree *parser.SceneTree, w io.Writer) error {
+// ExportToPDF exports a scene tree to PDF format
+// If useNative is true, uses Cairo directly. Otherwise uses Inkscape via SVG conversion.
+func ExportToPDF(tree *parser.SceneTree, w io.Writer, useNative bool) error {
+	// Use native Cairo renderer if requested and available
+	if useNative {
+		return ExportToPDFCairo(tree, w)
+	}
+
+	// Otherwise use Inkscape-based export
+	return exportToPDFInkscape(tree, w)
+}
+
+// exportToPDFInkscape exports a scene tree to PDF format via SVG conversion using Inkscape
+func exportToPDFInkscape(tree *parser.SceneTree, w io.Writer) error {
 	// Create temporary SVG
 	svgBuf := &bytes.Buffer{}
 	if err := ExportToSVG(tree, svgBuf); err != nil {

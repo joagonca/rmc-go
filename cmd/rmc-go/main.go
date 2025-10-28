@@ -14,6 +14,7 @@ import (
 var (
 	outputFile string
 	outputType string
+	useNative  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -32,6 +33,7 @@ Example usage:
 func init() {
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&outputType, "type", "t", "", "Output type: svg or pdf (default: guess from filename)")
+	rootCmd.Flags().BoolVar(&useNative, "native", false, "Use native Cairo renderer for PDF export (requires CGo)")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -79,7 +81,7 @@ func run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to export to SVG: %w", err)
 		}
 	case "pdf":
-		if err := export.ExportToPDF(tree, out); err != nil {
+		if err := export.ExportToPDF(tree, out, useNative); err != nil {
 			return fmt.Errorf("failed to export to PDF: %w", err)
 		}
 	default:
