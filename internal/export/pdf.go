@@ -56,18 +56,13 @@ func exportToPDFInkscape(tree *parser.SceneTree, w io.Writer) error {
 	// Remove PDF temp file after we're done reading it
 	defer os.Remove(pdfName)
 
-	// Try to convert with inkscape
+	// Convert with inkscape
 	cmd := exec.Command("inkscape", svgFile.Name(), "--export-filename", pdfName)
-	var cmdErr error
-	if cmdErr = cmd.Run(); cmdErr != nil {
-		// Try macOS path
-		cmd = exec.Command("/Applications/Inkscape.app/Contents/MacOS/inkscape",
-			svgFile.Name(), "--export-filename", pdfName)
-		if cmdErr = cmd.Run(); cmdErr != nil {
-			return fmt.Errorf("inkscape conversion failed (is Inkscape installed?): %w\n"+
-				"  Install Inkscape from: https://inkscape.org/release/\n"+
-				"  Or use SVG output with: -t svg", cmdErr)
-		}
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("inkscape conversion failed: %w\n"+
+			"  Ensure 'inkscape' is installed and available in PATH\n"+
+			"  Install: https://inkscape.org/release/\n"+
+			"  Or use SVG output with: -t svg", err)
 	}
 
 	// Read and write PDF
@@ -127,13 +122,9 @@ func exportToMultipagePDFInkscape(trees []*parser.SceneTree, w io.Writer) error 
 		pdfPath := filepath.Join(tempDir, fmt.Sprintf("page_%03d.pdf", i))
 		cmd := exec.Command("inkscape", svgPath, "--export-filename", pdfPath)
 		if err := cmd.Run(); err != nil {
-			// Try macOS path
-			cmd = exec.Command("/Applications/Inkscape.app/Contents/MacOS/inkscape",
-				svgPath, "--export-filename", pdfPath)
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("inkscape conversion failed for page %d (is Inkscape installed?): %w\n"+
-					"  Install Inkscape from: https://inkscape.org/release/", i+1, err)
-			}
+			return fmt.Errorf("inkscape conversion failed for page %d: %w\n"+
+				"  Ensure 'inkscape' is installed and available in PATH\n"+
+				"  Install: https://inkscape.org/release/", i+1, err)
 		}
 
 		pdfFiles = append(pdfFiles, pdfPath)
