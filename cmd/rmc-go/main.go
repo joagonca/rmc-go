@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	outputFile string
-	outputType string
-	useNative  bool
+	outputFile  string
+	outputType  string
+	useNative   bool
+	contentFile string
 )
 
 var rootCmd = &cobra.Command{
@@ -27,7 +28,8 @@ Example usage:
   rmc-go file.rm -o output.pdf
   rmc-go file.rm -o output.svg
   rmc-go file.rm -t pdf > output.pdf
-  rmc-go folder/ -o output.pdf  # Multipage PDF from all .rm files in folder`,
+  rmc-go folder/ -o output.pdf  # Multipage PDF from all .rm files in folder
+  rmc-go folder/ -o output.pdf --content folder.content  # Use .content file for page ordering`,
 	Args: cobra.ExactArgs(1),
 	RunE: run,
 }
@@ -36,6 +38,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&outputType, "type", "t", "", "Output type: svg or pdf (default: guess from filename)")
 	rootCmd.Flags().BoolVar(&useNative, "native", false, "Use native Cairo renderer for PDF export (requires CGo)")
+	rootCmd.Flags().StringVar(&contentFile, "content", "", "Path to .content file for page ordering (only used with folders)")
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -125,12 +128,30 @@ func handleDirectory(inputDir string, format string) error {
 		return fmt.Errorf("no .rm files found in directory: %s", inputDir)
 	}
 
-	// Sort files by modification time (oldest first)
-	sort.Slice(files, func(i, j int) bool {
-		infoI, _ := os.Stat(files[i])
-		infoJ, _ := os.Stat(files[j])
-		return infoI.ModTime().Before(infoJ.ModTime())
-	})
+	// Try to order files using .content file if specified
+	usedContentFile := false
+	if contentFile != "" {
+		var orderedFiles []string
+		orderedFiles, usedContentFile = parser.OrderFilesByContent(files, contentFile)
+		if usedContentFile {
+			files = orderedFiles
+			fmt.Fprintf(os.Stderr, "Using page ordering from content file: %s\n", contentFile)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: Could not use content file %s, falling back to modification time ordering\n", contentFile)
+		}
+	}
+
+	// If no content file was used, sort by modification time (oldest first)
+	if !usedContentFile {
+		sort.Slice(files, func(i, j int) bool {
+			infoI, _ := os.Stat(files[i])
+			infoJ, _ := os.Stat(files[j])
+			return infoI.ModTime().Before(infoJ.ModTime())
+		})
+		if contentFile == "" {
+			fmt.Fprintf(os.Stderr, "Warning: Using modification time for page ordering. For reliable ordering, use --content flag.\n")
+		}
+	}
 
 	// Parse all .rm files into scene trees
 	var trees []*parser.SceneTree

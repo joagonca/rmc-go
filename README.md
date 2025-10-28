@@ -77,12 +77,17 @@ This creates the `rmc` binary with both Inkscape and native Cairo PDF export.
 
 ```bash
 # Combine all .rm files in a folder into a single multipage PDF
-# Pages are ordered by file modification time (oldest first)
+# With .content file for reliable page ordering
+./rmc folder/ -o output.pdf --content folder.content
+
+# Without .content file (uses modification time - may be unreliable)
 ./rmc folder/ -o output.pdf
 
 # With native Cairo renderer
-./rmc folder/ -o output.pdf --native
+./rmc folder/ -o output.pdf --content folder.content --native
 ```
+
+**Important:** When using folders without a `.content` file, pages are ordered by file modification time, which may produce incorrect ordering if pages were edited after creation. Use the `--content` flag with a reMarkable `.content` file for reliable page ordering.
 
 **Note:** Multipage output is only supported for PDF format. Attempting to export a folder to SVG will result in an error.
 
@@ -100,6 +105,7 @@ Usage:
   rmc [input.rm|folder] [flags]
 
 Flags:
+      --content string  Path to .content file for page ordering (only used with folders)
   -h, --help            help for rmc
       --native          Use native Cairo renderer for PDF export (requires CGo)
   -o, --output string   Output file (default: stdout)
@@ -109,6 +115,10 @@ Flags:
 **Input:**
 - Single `.rm` file: Exports the file to the specified format
 - Folder: Combines all `.rm` files in the folder into a multipage PDF (only PDF format supported)
+
+**Page Ordering:**
+- With `--content` flag: Uses the `.content` JSON file to determine correct page order
+- Without `--content` flag: Falls back to file modification time (may be unreliable if pages edited after creation)
 
 ## Development
 
