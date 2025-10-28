@@ -12,13 +12,17 @@ import (
 	"github.com/ungerik/go-cairo"
 )
 
-// ExportToPDFCairo exports a scene tree directly to PDF using Cairo
-func ExportToPDFCairo(tree *parser.SceneTree, w io.Writer) error {
-	if tree == nil {
-		return fmt.Errorf("scene tree cannot be nil")
-	}
-	if tree.Root == nil {
-		return fmt.Errorf("scene tree root cannot be nil")
+// pageDimensions holds the calculated dimensions and anchor positions for a page
+type pageDimensions struct {
+	width, height float64
+	xMin, yMin    float64
+	anchorPos     map[parser.CrdtID]float64
+}
+
+// calculatePageDimensions computes the bounding box and dimensions for a scene tree
+func calculatePageDimensions(tree *parser.SceneTree) (pageDimensions, error) {
+	if tree == nil || tree.Root == nil {
+		return pageDimensions{}, fmt.Errorf("scene tree or root cannot be nil")
 	}
 
 	// Build anchor positions (including text-based anchors)
@@ -61,6 +65,46 @@ func ExportToPDFCairo(tree *parser.SceneTree, w io.Writer) error {
 	width := scale(xMax - xMin + 1)
 	height := scale(yMax - yMin + 1)
 
+	return pageDimensions{
+		width:     width,
+		height:    height,
+		xMin:      xMin,
+		yMin:      yMin,
+		anchorPos: anchorPos,
+	}, nil
+}
+
+// renderPageToCairo renders a scene tree to a Cairo surface
+func renderPageToCairo(tree *parser.SceneTree, surface *cairo.Surface, dims pageDimensions) error {
+	// Set up coordinate system
+	surface.Save()
+	defer surface.Restore()
+
+	surface.Translate(-scale(dims.xMin), -scale(dims.yMin))
+
+	// Draw text first (if it exists)
+	if tree.RootText != nil {
+		if err := drawTextCairo(tree.RootText, surface); err != nil {
+			return fmt.Errorf("failed to draw root text: %w", err)
+		}
+	}
+
+	// Draw strokes/groups
+	if err := drawGroupCairo(tree.Root, surface, dims.anchorPos); err != nil {
+		return fmt.Errorf("failed to draw group: %w", err)
+	}
+
+	return nil
+}
+
+// ExportToPDFCairo exports a scene tree directly to PDF using Cairo
+func ExportToPDFCairo(tree *parser.SceneTree, w io.Writer) error {
+	// Calculate page dimensions
+	dims, err := calculatePageDimensions(tree)
+	if err != nil {
+		return err
+	}
+
 	// Create a temporary file for PDF output
 	// Cairo requires a file path, so we write to temp and then copy
 	tmpFile, err := os.CreateTemp("", "rmc-cairo-*.pdf")
@@ -72,23 +116,12 @@ func ExportToPDFCairo(tree *parser.SceneTree, w io.Writer) error {
 	defer os.Remove(tmpPath)
 
 	// Create a Cairo PDF surface with the temp file
-	pdfSurface := cairo.NewPDFSurface(tmpPath, width, height, cairo.PDF_VERSION_1_5)
+	pdfSurface := cairo.NewPDFSurface(tmpPath, dims.width, dims.height, cairo.PDF_VERSION_1_5)
 	defer pdfSurface.Finish()
 
-	// Set up coordinate system - translate to account for bounding box offset
-	pdfSurface.Translate(-scale(xMin), -scale(yMin))
-
-	// Render the content
-	// Draw text first (if it exists)
-	if tree.RootText != nil {
-		if err := drawTextCairo(tree.RootText, pdfSurface); err != nil {
-			return fmt.Errorf("failed to draw root text: %w", err)
-		}
-	}
-
-	// Draw strokes/groups
-	if err := drawGroupCairo(tree.Root, pdfSurface, anchorPos); err != nil {
-		return fmt.Errorf("failed to draw group: %w", err)
+	// Render the page
+	if err := renderPageToCairo(tree, pdfSurface, dims); err != nil {
+		return err
 	}
 
 	// Finish the surface to flush all drawing operations
@@ -265,6 +298,12 @@ func ExportToMultipagePDFCairo(trees []*parser.SceneTree, w io.Writer) error {
 		return fmt.Errorf("no scene trees provided")
 	}
 
+	// Calculate dimensions for the first page to initialize the PDF surface
+	firstDims, err := calculatePageDimensions(trees[0])
+	if err != nil {
+		return fmt.Errorf("page 1: %w", err)
+	}
+
 	// Create a temporary file for PDF output
 	// Cairo requires a file path, so we write to temp and then copy
 	tmpFile, err := os.CreateTemp("", "rmc-cairo-multipage-*.pdf")
@@ -275,103 +314,33 @@ func ExportToMultipagePDFCairo(trees []*parser.SceneTree, w io.Writer) error {
 	tmpFile.Close()
 	defer os.Remove(tmpPath)
 
-	// Pre-calculate dimensions for all pages
-	type pageDimensions struct {
-		width, height       float64
-		xMin, yMin          float64
-		anchorPos           map[parser.CrdtID]float64
-	}
-
-	pageDims := make([]pageDimensions, len(trees))
-
-	for i, tree := range trees {
-		if tree == nil || tree.Root == nil {
-			return fmt.Errorf("scene tree %d cannot be nil", i+1)
-		}
-
-		// Build anchor positions
-		anchorPos := buildAnchorPos(tree.RootText)
-
-		// Calculate bounding box
-		xMin, xMax, yMin, yMax := getBoundingBox(tree.Root, anchorPos)
-
-		// Include text area in bounding box calculation
-		if tree.RootText != nil {
-			textMinX := tree.RootText.PosX
-			textMaxX := tree.RootText.PosX + float64(tree.RootText.Width)
-
-			doc, err := parser.BuildTextDocument(tree.RootText)
-			if err == nil && len(doc.Paragraphs) > 0 {
-				yOffset := TextTopY
-				textMinY := math.MaxFloat64
-				textMaxY := -math.MaxFloat64
-
-				for _, p := range doc.Paragraphs {
-					lineHeight := lineHeights[p.Style]
-					if lineHeight == 0 {
-						lineHeight = 70
-					}
-					yOffset += lineHeight
-					yPos := tree.RootText.PosY + yOffset
-
-					textMinY = math.Min(textMinY, yPos)
-					textMaxY = math.Max(textMaxY, yPos)
-				}
-
-				xMin = math.Min(xMin, textMinX)
-				xMax = math.Max(xMax, textMaxX)
-				yMin = math.Min(yMin, textMinY)
-				yMax = math.Max(yMax, textMaxY)
-			}
-		}
-
-		width := scale(xMax - xMin + 1)
-		height := scale(yMax - yMin + 1)
-
-		pageDims[i] = pageDimensions{
-			width:     width,
-			height:    height,
-			xMin:      xMin,
-			yMin:      yMin,
-			anchorPos: anchorPos,
-		}
-	}
-
 	// Create PDF surface with first page dimensions
-	pdfSurface := cairo.NewPDFSurface(tmpPath, pageDims[0].width, pageDims[0].height, cairo.PDF_VERSION_1_5)
+	// Note: go-cairo doesn't expose cairo_pdf_surface_set_size
+	// All pages will use the first page's dimensions (a limitation of this binding)
+	pdfSurface := cairo.NewPDFSurface(tmpPath, firstDims.width, firstDims.height, cairo.PDF_VERSION_1_5)
 	defer pdfSurface.Finish()
 
 	// Render each page
 	for pageIdx, tree := range trees {
-		dims := pageDims[pageIdx]
-
-		// Set up coordinate system
-		pdfSurface.Save()
-		pdfSurface.Translate(-scale(dims.xMin), -scale(dims.yMin))
-
-		// Render the content
-		// Draw text first (if it exists)
-		if tree.RootText != nil {
-			if err := drawTextCairo(tree.RootText, pdfSurface); err != nil {
-				pdfSurface.Restore()
-				return fmt.Errorf("failed to draw root text on page %d: %w", pageIdx+1, err)
+		// Calculate dimensions for this page
+		var dims pageDimensions
+		if pageIdx == 0 {
+			dims = firstDims
+		} else {
+			dims, err = calculatePageDimensions(tree)
+			if err != nil {
+				return fmt.Errorf("page %d: %w", pageIdx+1, err)
 			}
 		}
 
-		// Draw strokes/groups
-		if err := drawGroupCairo(tree.Root, pdfSurface, dims.anchorPos); err != nil {
-			pdfSurface.Restore()
-			return fmt.Errorf("failed to draw group on page %d: %w", pageIdx+1, err)
+		// Render the page
+		if err := renderPageToCairo(tree, pdfSurface, dims); err != nil {
+			return fmt.Errorf("page %d: %w", pageIdx+1, err)
 		}
-
-		pdfSurface.Restore()
 
 		// Show the page (this finalizes the current page and prepares for next)
 		if pageIdx < len(trees)-1 {
 			pdfSurface.ShowPage()
-			// Note: go-cairo doesn't expose cairo_pdf_surface_set_size
-			// All pages will use the first page's dimensions
-			// This is a limitation we'll document
 		}
 	}
 
