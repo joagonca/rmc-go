@@ -1,4 +1,4 @@
-.PHONY: all build test clean help
+.PHONY: all build build-cairo test clean help
 
 # Binary name
 BINARY_NAME=rmc
@@ -21,11 +21,23 @@ TEST_OUTPUT_DIR=test_output
 # Default target
 all: build
 
-# Build the binary
+# Build the binary (without Cairo support)
 build:
-	@echo "Building $(BINARY_NAME)..."
-	$(GOBUILD) -o $(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "Building $(BINARY_NAME) (without Cairo support)..."
+	@echo "For native PDF export with --native flag, use: make build-cairo"
+	CGO_ENABLED=0 $(GOBUILD) -tags '!cairo' -o $(BINARY_NAME) $(MAIN_PACKAGE)
 	@echo "✓ Build complete: $(BINARY_NAME)"
+
+# Build the binary with Cairo support (requires CGo and Cairo libraries)
+build-cairo:
+	@echo "Building $(BINARY_NAME) with Cairo support..."
+	@echo "This requires cairo development libraries installed:"
+	@echo "  macOS: brew install cairo pkg-config"
+	@echo "  Ubuntu/Debian: sudo apt-get install libcairo2-dev"
+	@echo "  Fedora: sudo dnf install cairo-devel"
+	@echo ""
+	CGO_ENABLED=1 $(GOBUILD) -tags cairo -o $(BINARY_NAME) $(MAIN_PACKAGE)
+	@echo "✓ Build complete: $(BINARY_NAME) (with Cairo support)"
 
 # Run tests with test files
 test: build
@@ -86,13 +98,18 @@ deps:
 # Show help
 help:
 	@echo "Available targets:"
-	@echo "  make build      - Build the $(BINARY_NAME) binary"
-	@echo "  make test       - Run integration tests with .rm files"
-	@echo "  make test-unit  - Run Go unit tests"
-	@echo "  make clean      - Remove binary and test outputs"
-	@echo "  make deps       - Install Go dependencies"
-	@echo "  make all        - Build the binary (default)"
-	@echo "  make help       - Show this help message"
+	@echo "  make build        - Build the $(BINARY_NAME) binary (without Cairo)"
+	@echo "  make build-cairo  - Build the $(BINARY_NAME) binary with Cairo support"
+	@echo "  make test         - Run integration tests with .rm files"
+	@echo "  make test-unit    - Run Go unit tests"
+	@echo "  make clean        - Remove binary and test outputs"
+	@echo "  make deps         - Install Go dependencies"
+	@echo "  make all          - Build the binary (default)"
+	@echo "  make help         - Show this help message"
+	@echo ""
+	@echo "Cairo support:"
+	@echo "  Build with 'make build-cairo' to enable --native PDF export"
+	@echo "  Requires: cairo development libraries and pkg-config"
 	@echo ""
 	@echo "Test files in $(TEST_DIR)/:"
 	@for file in $(TEST_FILES); do \
