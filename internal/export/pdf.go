@@ -12,15 +12,15 @@ import (
 )
 
 // ExportToPDF exports a scene tree to PDF format
-// If useNative is true, uses Cairo directly. Otherwise uses Inkscape via SVG conversion.
-func ExportToPDF(tree *parser.SceneTree, w io.Writer, useNative bool) error {
-	// Use native Cairo renderer if requested and available
-	if useNative {
-		return ExportToPDFCairo(tree, w)
+// If useLegacy is true, uses Inkscape via SVG conversion. Otherwise uses Cairo directly (default).
+func ExportToPDF(tree *parser.SceneTree, w io.Writer, useLegacy bool) error {
+	// Use legacy Inkscape renderer if requested
+	if useLegacy {
+		return exportToPDFInkscape(tree, w)
 	}
 
-	// Otherwise use Inkscape-based export
-	return exportToPDFInkscape(tree, w)
+	// Otherwise use native Cairo-based export (default)
+	return ExportToPDFCairo(tree, w)
 }
 
 // exportToPDFInkscape exports a scene tree to PDF format via SVG conversion using Inkscape
@@ -79,19 +79,19 @@ func exportToPDFInkscape(tree *parser.SceneTree, w io.Writer) error {
 }
 
 // ExportToMultipagePDF exports multiple scene trees to a multipage PDF format
-// If useNative is true, uses Cairo directly. Otherwise uses Inkscape via SVG conversion.
-func ExportToMultipagePDF(trees []*parser.SceneTree, w io.Writer, useNative bool) error {
+// If useLegacy is true, uses Inkscape via SVG conversion. Otherwise uses Cairo directly (default).
+func ExportToMultipagePDF(trees []*parser.SceneTree, w io.Writer, useLegacy bool) error {
 	if len(trees) == 0 {
 		return fmt.Errorf("no scene trees provided")
 	}
 
-	// Use native Cairo renderer if requested and available
-	if useNative {
-		return ExportToMultipagePDFCairo(trees, w)
+	// Use legacy Inkscape renderer if requested
+	if useLegacy {
+		return exportToMultipagePDFInkscape(trees, w)
 	}
 
-	// Otherwise use Inkscape-based export
-	return exportToMultipagePDFInkscape(trees, w)
+	// Otherwise use native Cairo-based export (default)
+	return ExportToMultipagePDFCairo(trees, w)
 }
 
 // exportToMultipagePDFInkscape exports multiple scene trees to a multipage PDF via SVG conversion using Inkscape
