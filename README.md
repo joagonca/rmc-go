@@ -9,8 +9,8 @@ This began as a port of the Python [rmc](https://github.com/ricklupton/rmc) tool
 - Read reMarkable v6 format files (software version 3+)
 - Export to SVG format
 - Export to PDF format
-  - Default: via Inkscape (requires Inkscape installation)
-  - Native: direct PDF rendering using Cairo (requires CGo build)
+  - Default: direct PDF rendering using Cairo (requires CGo build)
+  - Legacy: via Inkscape (requires Inkscape installation)
 - Multipage PDF support: combine multiple .rm files from a folder into a single PDF
 - Handles strokes/drawings with different pen types and colors
 - Support for all pen colors including highlights and shaders
@@ -23,26 +23,14 @@ This began as a port of the Python [rmc](https://github.com/ricklupton/rmc) tool
 - Go 1.21 or later
 - Make (for building with Makefile)
 - **For PDF export (choose one):**
-  - Inkscape (for default PDF export via SVG)
-  - Cairo development libraries + pkg-config (for native PDF export with `--native` flag)
-- **For multipage PDF (Inkscape method only):**
+  - Cairo development libraries + pkg-config (for default PDF export)
+  - Inkscape (for legacy PDF export via SVG with `--legacy` flag)
+- **For multipage PDF (legacy Inkscape method only):**
   - `pdfunite` (from poppler-utils) or `ghostscript` for merging PDFs
 
 ### Build from source
 
-#### Standard build (without native PDF support)
-
-```bash
-git clone <repository-url>
-cd rmc-go
-make build
-```
-
-This creates the `rmc` binary with Inkscape-based PDF export support.
-
-#### Build with native Cairo PDF support
-
-To enable the `--native` flag for direct PDF rendering:
+#### Standard build (with Cairo PDF support)
 
 ```bash
 # Install Cairo libraries first:
@@ -50,21 +38,35 @@ To enable the `--native` flag for direct PDF rendering:
 # Ubuntu/Debian: sudo apt-get install libcairo2-dev
 # Fedora: sudo dnf install cairo-devel
 
+git clone <repository-url>
+cd rmc-go
 make build-cairo
 ```
 
-This creates the `rmc` binary with both Inkscape and native Cairo PDF export.
+This creates the `rmc` binary with native Cairo PDF export (default) and legacy Inkscape support.
+
+#### Build without Cairo (Inkscape-only)
+
+If you don't want to install Cairo dependencies:
+
+```bash
+git clone <repository-url>
+cd rmc-go
+make build
+```
+
+This creates the `rmc` binary with Inkscape-based PDF export only. Note: PDF export will only work with the `--legacy` flag.
 
 ## Usage
 
 ### Export to PDF
 
 ```bash
-# Default: using Inkscape (requires Inkscape installed)
+# Default: using Cairo (requires build-cairo)
 ./rmc file.rm -o output.pdf
 
-# Native: using Cairo (requires build-cairo)
-./rmc file.rm -o output.pdf --native
+# Legacy: using Inkscape (requires Inkscape installed)
+./rmc file.rm -o output.pdf --legacy
 ```
 
 ### Export to SVG
@@ -77,14 +79,14 @@ This creates the `rmc` binary with both Inkscape and native Cairo PDF export.
 
 ```bash
 # Combine all .rm files in a folder into a single multipage PDF
-# With .content file for reliable page ordering
+# With .content file for reliable page ordering (default: Cairo renderer)
 ./rmc folder/ -o output.pdf --content folder.content
 
 # Without .content file (uses modification time - may be unreliable)
 ./rmc folder/ -o output.pdf
 
-# With native Cairo renderer
-./rmc folder/ -o output.pdf --content folder.content --native
+# With legacy Inkscape renderer
+./rmc folder/ -o output.pdf --content folder.content --legacy
 ```
 
 **Important:** When using folders without a `.content` file, pages are ordered by file modification time, which may produce incorrect ordering if pages were edited after creation. Use the `--content` flag with a reMarkable `.content` file for reliable page ordering.
@@ -107,7 +109,7 @@ Usage:
 Flags:
       --content string  Path to .content file for page ordering (only used with folders)
   -h, --help            help for rmc
-      --native          Use native Cairo renderer for PDF export (requires CGo)
+      --legacy          Use legacy Inkscape renderer for PDF export (requires Inkscape)
   -o, --output string   Output file (default: stdout)
   -t, --type string     Output type: svg or pdf (default: guess from filename)
 ```
@@ -155,7 +157,7 @@ The project includes test `.rm` files in the `tests/` directory. Run `make test`
 ```
 rmc-go/
 ├── cmd/rmc-go/          # CLI application
-│   └── main.go                # Main entry point with --native flag support
+│   └── main.go                # Main entry point with --legacy flag support
 ├── internal/
 │   ├── parser/          # v6 file format parser
 │   │   ├── datastream.go      # Binary data stream reader
@@ -193,8 +195,8 @@ This implementation:
 2. **Builds** a scene tree with groups (layers) and items (strokes/text)
 3. **Exports** to output formats:
    - **SVG**: Direct rendering of strokes and text with appropriate pen styles
-   - **PDF (Inkscape)**: Converts SVG to PDF using Inkscape
-   - **PDF (Native)**: Direct rendering to PDF using Cairo graphics library (requires `--native` flag and Cairo build)
+   - **PDF (Cairo)**: Direct rendering to PDF using Cairo graphics library (default, requires Cairo build)
+   - **PDF (Inkscape)**: Converts SVG to PDF using Inkscape (legacy, requires `--legacy` flag)
 
 ## Supported Pen Types
 
@@ -228,20 +230,21 @@ All pen colors are rendered with accurate RGB values and appropriate opacity for
 
 This tool supports two methods for PDF export:
 
-### Inkscape Method (Default)
+### Cairo Method (Default)
+
+- Renders PDF directly using Cairo graphics library
+- **Pros:** No external dependencies at runtime, faster rendering
+- **Cons:** Requires CGo and Cairo libraries at build time
+- **Usage:** `./rmc file.rm -o output.pdf`
+- **Build:** `make build-cairo`
+
+### Inkscape Method (Legacy)
 
 - Converts to SVG first, then uses Inkscape to generate PDF
 - **Pros:** No CGo dependencies, easier to build and deploy
-- **Cons:** Requires Inkscape to be installed on the system
-- **Usage:** `./rmc file.rm -o output.pdf`
-
-### Native Cairo Method
-
-- Renders PDF directly using Cairo graphics library
-- **Pros:** No external dependencies at runtime, potentially faster
-- **Cons:** Requires CGo and Cairo libraries at build time
-- **Usage:** `./rmc file.rm -o output.pdf --native`
-- **Build:** `make build-cairo`
+- **Cons:** Requires Inkscape to be installed on the system, slower
+- **Usage:** `./rmc file.rm -o output.pdf --legacy`
+- **Build:** `make build`
 
 Both methods produce equivalent PDF output with full support for all pen types, colors, and text rendering.
 

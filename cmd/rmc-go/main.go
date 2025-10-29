@@ -15,7 +15,7 @@ import (
 var (
 	outputFile  string
 	outputType  string
-	useNative   bool
+	useLegacy   bool
 	contentFile string
 )
 
@@ -28,6 +28,7 @@ Example usage:
   rmc-go file.rm -o output.pdf
   rmc-go file.rm -o output.svg
   rmc-go file.rm -t pdf > output.pdf
+  rmc-go file.rm -o output.pdf --legacy  # Use Inkscape renderer
   rmc-go folder/ -o output.pdf  # Multipage PDF from all .rm files in folder
   rmc-go folder/ -o output.pdf --content folder.content  # Use .content file for page ordering`,
 	Args: cobra.ExactArgs(1),
@@ -37,7 +38,7 @@ Example usage:
 func init() {
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&outputType, "type", "t", "", "Output type: svg or pdf (default: guess from filename)")
-	rootCmd.Flags().BoolVar(&useNative, "native", false, "Use native Cairo renderer for PDF export (requires CGo)")
+	rootCmd.Flags().BoolVar(&useLegacy, "legacy", false, "Use legacy Inkscape renderer for PDF export (requires Inkscape)")
 	rootCmd.Flags().StringVar(&contentFile, "content", "", "Path to .content file for page ordering (only used with folders)")
 }
 
@@ -102,7 +103,7 @@ func handleSingleFile(inputFile string, format string) error {
 			return fmt.Errorf("failed to export to SVG: %w", err)
 		}
 	case "pdf":
-		if err := export.ExportToPDF(tree, out, useNative); err != nil {
+		if err := export.ExportToPDF(tree, out, useLegacy); err != nil {
 			return fmt.Errorf("failed to export to PDF: %w", err)
 		}
 	default:
@@ -181,7 +182,7 @@ func handleDirectory(inputDir string, format string) error {
 	}
 
 	// Export multipage PDF
-	if err := export.ExportToMultipagePDF(trees, out, useNative); err != nil {
+	if err := export.ExportToMultipagePDF(trees, out, useLegacy); err != nil {
 		return fmt.Errorf("failed to export multipage PDF: %w", err)
 	}
 
