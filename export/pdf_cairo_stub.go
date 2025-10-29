@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/joagonca/rmc-go/internal/parser"
+	"github.com/joagonca/rmc-go/parser"
 )
 
 // ExportToPDFCairo is a stub when Cairo is not available

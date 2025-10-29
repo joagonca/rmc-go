@@ -4,6 +4,8 @@ A Go implementation for converting reMarkable tablet v6 format files (`.rm`) to 
 
 This began as a port of the Python [rmc](https://github.com/ricklupton/rmc) tool, which uses [rmscene](https://github.com/ricklupton/rmscene) to read the reMarkable v6 file format, but was already extended in functionality.
 
+**rmc-go can be used both as a command-line tool and as a Go library.**
+
 ## Features
 
 - Read reMarkable v6 format files (software version 3+)
@@ -57,9 +59,27 @@ make build
 
 This creates the `rmc` binary with Inkscape-based PDF export only. Note: PDF export will only work with the `--legacy` flag.
 
+### As a Go Library
+
+To use rmc-go as a library in your Go application:
+
+```bash
+go get github.com/joagonca/rmc-go
+```
+
+Then import it in your code:
+
+```go
+import "github.com/joagonca/rmc-go"
+```
+
+See the [Library Usage](#library-usage) section below for examples.
+
 ## Usage
 
-### Export to PDF
+### Command-Line Interface
+
+#### Export to PDF
 
 ```bash
 # Default: using Cairo (requires build-cairo)
@@ -69,13 +89,13 @@ This creates the `rmc` binary with Inkscape-based PDF export only. Note: PDF exp
 ./rmc file.rm -o output.pdf --legacy
 ```
 
-### Export to SVG
+#### Export to SVG
 
 ```bash
 ./rmc file.rm -o output.svg
 ```
 
-### Multipage PDF from folder
+#### Multipage PDF from folder
 
 ```bash
 # Combine all .rm files in a folder into a single multipage PDF
@@ -93,14 +113,14 @@ This creates the `rmc` binary with Inkscape-based PDF export only. Note: PDF exp
 
 **Note:** Multipage output is only supported for PDF format. Attempting to export a folder to SVG will result in an error.
 
-### Export to stdout
+#### Export to stdout
 
 ```bash
 ./rmc file.rm -t svg > output.svg
 ./rmc file.rm -t pdf > output.pdf
 ```
 
-### Command-line options
+#### Command-line options
 
 ```
 Usage:
@@ -121,6 +141,104 @@ Flags:
 **Page Ordering:**
 - With `--content` flag: Uses the `.content` JSON file to determine correct page order
 - Without `--content` flag: Falls back to file modification time (may be unreliable if pages edited after creation)
+
+### Library Usage
+
+rmc-go can be imported and used as a library in your Go applications. The package provides both high-level convenience functions and low-level APIs for fine-grained control.
+
+#### Quick Start
+
+```go
+package main
+
+import (
+    "log"
+    "github.com/joagonca/rmc-go"
+)
+
+func main() {
+    // Simple file-to-file conversion
+    err := rmc.ConvertFile("input.rm", "output.pdf", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+#### Convert from Binary Data
+
+```go
+// Read .rm file into memory
+rmData, err := os.ReadFile("input.rm")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Convert to PDF bytes
+pdfData, err := rmc.ConvertFromBytes(rmData, rmc.FormatPDF, nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Use pdfData as needed (write to file, send over HTTP, etc.)
+os.WriteFile("output.pdf", pdfData, 0644)
+```
+
+#### Convert with Options
+
+```go
+opts := &rmc.Options{
+    UseLegacy: true, // Use Inkscape renderer instead of Cairo
+}
+
+err := rmc.ConvertFile("input.rm", "output.pdf", opts)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+#### Available Functions
+
+- `ConvertFile(inputPath, outputPath, opts)` - Convert a file on disk
+- `Convert(reader, writer, format, opts)` - Convert using io.Reader/Writer
+- `ConvertFromBytes(data, format, opts)` - Convert from byte slice to byte slice
+- `ConvertToBytes(data, format, opts)` - Alias for ConvertFromBytes
+- `ConvertFileToBytes(inputPath, format, opts)` - Read file and convert to bytes
+- `ConvertBytesToFile(data, outputPath, format, opts)` - Convert bytes and write to file
+
+#### Low-Level API
+
+For more control, you can use the `parser` and `export` packages directly:
+
+```go
+import (
+    "os"
+    "github.com/joagonca/rmc-go/parser"
+    "github.com/joagonca/rmc-go/export"
+)
+
+func main() {
+    // Parse .rm file
+    f, _ := os.Open("input.rm")
+    tree, err := parser.ReadSceneTree(f)
+    f.Close()
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Export to PDF
+    out, _ := os.Create("output.pdf")
+    defer out.Close()
+
+    useLegacy := false
+    err = export.ExportToPDF(tree, out, useLegacy)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+See `example_library_usage.go` for complete working examples.
 
 ## Development
 
@@ -158,20 +276,22 @@ The project includes test `.rm` files in the `tests/` directory. Run `make test`
 rmc-go/
 ├── cmd/rmc-go/          # CLI application
 │   └── main.go                # Main entry point with --legacy flag support
-├── internal/
-│   ├── parser/          # v6 file format parser
-│   │   ├── datastream.go      # Binary data stream reader
-│   │   ├── block_reader.go    # Tagged block reader
-│   │   ├── limited_reader.go  # Limited reader utility
-│   │   ├── scene_stream.go    # Scene block parser
-│   │   ├── text.go            # Text document processing
-│   │   └── types.go           # Data structures
-│   └── export/          # Export functionality
-│       ├── svg.go             # SVG export
-│       ├── pen.go             # Pen rendering (shared by SVG/PDF)
-│       ├── pdf.go             # PDF export (Inkscape method)
-│       ├── pdf_cairo.go       # Native PDF export using Cairo (build tag: cairo)
-│       └── pdf_cairo_stub.go  # Stub for builds without Cairo
+├── parser/              # v6 file format parser (public API)
+│   ├── datastream.go          # Binary data stream reader
+│   ├── block_reader.go        # Tagged block reader
+│   ├── limited_reader.go      # Limited reader utility
+│   ├── scene_stream.go        # Scene block parser
+│   ├── text.go                # Text document processing
+│   ├── content.go             # Content file parsing
+│   └── types.go               # Data structures
+├── export/              # Export functionality (public API)
+│   ├── svg.go                 # SVG export
+│   ├── pen.go                 # Pen rendering (shared by SVG/PDF)
+│   ├── pdf.go                 # PDF export (Inkscape method)
+│   ├── pdf_cairo.go           # Native PDF export using Cairo (build tag: cairo)
+│   └── pdf_cairo_stub.go      # Stub for builds without Cairo
+├── rmc.go               # High-level convenience API for library usage
+├── example_library_usage.go   # Example code for library users
 ├── tests/               # Test .rm files
 ├── Makefile             # Build automation (build, build-cairo targets)
 ├── go.mod

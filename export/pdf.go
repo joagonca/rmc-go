@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/joagonca/rmc-go/internal/parser"
+	"github.com/joagonca/rmc-go/parser"
 )
 
 // ExportToPDF exports a scene tree to PDF format
