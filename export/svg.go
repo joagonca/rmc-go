@@ -6,7 +6,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/joagonca/rmc-go/internal/parser"
+	"github.com/joagonca/rmc-go/parser"
 )
 
 const (

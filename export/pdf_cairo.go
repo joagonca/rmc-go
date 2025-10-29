@@ -8,7 +8,7 @@ import (
 	"math"
 	"os"
 
-	"github.com/joagonca/rmc-go/internal/parser"
+	"github.com/joagonca/rmc-go/parser"
 	"github.com/ungerik/go-cairo"
 )
 

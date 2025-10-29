@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/joagonca/rmc-go/internal/export"
-	"github.com/joagonca/rmc-go/internal/parser"
+	"github.com/joagonca/rmc-go/export"
+	"github.com/joagonca/rmc-go/parser"
 	"github.com/spf13/cobra"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/joagonca/rmc-go/internal/parser"
+	"github.com/joagonca/rmc-go/parser"
 )
 
 type RGB struct {
