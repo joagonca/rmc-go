@@ -22,7 +22,7 @@ This began as a port of the Python [rmc](https://github.com/ricklupton/rmc) tool
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.25 or later
 - Make (for building with Makefile)
 - **For PDF export (choose one):**
   - Cairo development libraries + pkg-config (for default PDF export)

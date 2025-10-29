@@ -24,7 +24,7 @@ all: build
 # Build the binary (without Cairo support)
 build:
 	@echo "Building $(BINARY_NAME) (without Cairo support)..."
-	@echo "For native PDF export with --native flag, use: make build-cairo"
+	@echo "For native PDF export use: make build-cairo"
 	CGO_ENABLED=0 $(GOBUILD) -tags '!cairo' -o $(BINARY_NAME) $(MAIN_PACKAGE)
 	@echo "✓ Build complete: $(BINARY_NAME)"
 
@@ -108,7 +108,7 @@ help:
 	@echo "  make help         - Show this help message"
 	@echo ""
 	@echo "Cairo support:"
-	@echo "  Build with 'make build-cairo' to enable --native PDF export"
+	@echo "  Build with 'make build-cairo' to enable native PDF export"
 	@echo "  Requires: cairo development libraries and pkg-config"
 	@echo ""
 	@echo "Test files in $(TEST_DIR)/:"
