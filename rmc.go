@@ -182,6 +182,155 @@ func ConvertBytesToFile(data []byte, outputPath string, format Format, opts *Opt
 	return nil
 }
 
+// ConvertFiles converts multiple ordered reMarkable .rm files to a multipage PDF.
+// The files are processed in the order they appear in the slice.
+// Only PDF format is supported for multipage output.
+//
+// Example:
+//
+//	files := []string{"page1.rm", "page2.rm", "page3.rm"}
+//	err := rmc.ConvertFiles(files, "output.pdf", nil)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+func ConvertFiles(inputPaths []string, outputPath string, opts *Options) error {
+	if opts == nil {
+		opts = DefaultOptions()
+	}
+
+	if len(inputPaths) == 0 {
+		return fmt.Errorf("no input files provided")
+	}
+
+	// Parse all .rm files into scene trees
+	var trees []*parser.SceneTree
+	for i, path := range inputPaths {
+		file, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("failed to open file %d (%s): %w", i+1, path, err)
+		}
+
+		tree, err := parser.ReadSceneTree(file)
+		file.Close()
+		if err != nil {
+			return fmt.Errorf("failed to parse file %d (%s): %w", i+1, path, err)
+		}
+
+		trees = append(trees, tree)
+	}
+
+	// Create output file
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer outputFile.Close()
+
+	// Export to multipage PDF
+	if err := export.ExportToMultipagePDF(trees, outputFile, opts.UseLegacy); err != nil {
+		return fmt.Errorf("failed to export multipage PDF: %w", err)
+	}
+
+	return nil
+}
+
+// ConvertMultipleFromBytes converts multiple ordered reMarkable .rm files from binary data
+// to a multipage PDF, returning the result as a byte slice.
+// The pages are processed in the order they appear in the slice.
+// Only PDF format is supported for multipage output.
+//
+// Example:
+//
+//	pages := [][]byte{page1Data, page2Data, page3Data}
+//	pdfData, err := rmc.ConvertMultipleFromBytes(pages, nil)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	os.WriteFile("output.pdf", pdfData, 0644)
+func ConvertMultipleFromBytes(pages [][]byte, opts *Options) ([]byte, error) {
+	if opts == nil {
+		opts = DefaultOptions()
+	}
+
+	if len(pages) == 0 {
+		return nil, fmt.Errorf("no pages provided")
+	}
+
+	// Parse all pages into scene trees
+	var trees []*parser.SceneTree
+	for i, data := range pages {
+		reader := bytes.NewReader(data)
+		tree, err := parser.ReadSceneTree(reader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse page %d: %w", i+1, err)
+		}
+		trees = append(trees, tree)
+	}
+
+	// Export to multipage PDF
+	output := &bytes.Buffer{}
+	if err := export.ExportToMultipagePDF(trees, output, opts.UseLegacy); err != nil {
+		return nil, fmt.Errorf("failed to export multipage PDF: %w", err)
+	}
+
+	return output.Bytes(), nil
+}
+
+// ConvertFilesToBytes reads multiple ordered reMarkable .rm files and converts them
+// to a multipage PDF, returning the result as a byte slice.
+// The files are processed in the order they appear in the slice.
+// Only PDF format is supported for multipage output.
+//
+// Example:
+//
+//	files := []string{"page1.rm", "page2.rm", "page3.rm"}
+//	pdfData, err := rmc.ConvertFilesToBytes(files, nil)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+func ConvertFilesToBytes(inputPaths []string, opts *Options) ([]byte, error) {
+	if len(inputPaths) == 0 {
+		return nil, fmt.Errorf("no input files provided")
+	}
+
+	// Read all files into memory
+	var pages [][]byte
+	for i, path := range inputPaths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read file %d (%s): %w", i+1, path, err)
+		}
+		pages = append(pages, data)
+	}
+
+	return ConvertMultipleFromBytes(pages, opts)
+}
+
+// ConvertMultipleBytesToFile converts multiple ordered reMarkable .rm files from binary data
+// to a multipage PDF and writes it to a file.
+// The pages are processed in the order they appear in the slice.
+// Only PDF format is supported for multipage output.
+//
+// Example:
+//
+//	pages := [][]byte{page1Data, page2Data, page3Data}
+//	err := rmc.ConvertMultipleBytesToFile(pages, "output.pdf", nil)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+func ConvertMultipleBytesToFile(pages [][]byte, outputPath string, opts *Options) error {
+	pdfData, err := ConvertMultipleFromBytes(pages, opts)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(outputPath, pdfData, 0644); err != nil {
+		return fmt.Errorf("failed to write output file: %w", err)
+	}
+
+	return nil
+}
+
 // inferFormat infers the output format from a file path based on extension
 func inferFormat(path string) Format {
 	ext := strings.ToLower(filepath.Ext(path))

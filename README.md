@@ -199,12 +199,38 @@ if err != nil {
 
 #### Available Functions
 
+**Single Page Conversion:**
 - `ConvertFile(inputPath, outputPath, opts)` - Convert a file on disk
 - `Convert(reader, writer, format, opts)` - Convert using io.Reader/Writer
 - `ConvertFromBytes(data, format, opts)` - Convert from byte slice to byte slice
 - `ConvertToBytes(data, format, opts)` - Alias for ConvertFromBytes
 - `ConvertFileToBytes(inputPath, format, opts)` - Read file and convert to bytes
 - `ConvertBytesToFile(data, outputPath, format, opts)` - Convert bytes and write to file
+
+**Multipage PDF Conversion:**
+- `ConvertFiles(inputPaths, outputPath, opts)` - Convert multiple files to multipage PDF
+- `ConvertMultipleFromBytes(pages, opts)` - Convert multiple byte slices to multipage PDF
+- `ConvertFilesToBytes(inputPaths, opts)` - Read multiple files and convert to multipage PDF bytes
+- `ConvertMultipleBytesToFile(pages, outputPath, opts)` - Convert multiple byte slices and write to PDF file
+
+#### Multipage PDF Examples
+
+```go
+// Convert multiple files to a multipage PDF
+files := []string{"page1.rm", "page2.rm", "page3.rm"}
+err := rmc.ConvertFiles(files, "output.pdf", nil)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Convert from byte slices (e.g., from database or HTTP requests)
+pages := [][]byte{page1Data, page2Data, page3Data}
+pdfData, err := rmc.ConvertMultipleFromBytes(pages, nil)
+if err != nil {
+    log.Fatal(err)
+}
+os.WriteFile("output.pdf", pdfData, 0644)
+```
 
 #### Low-Level API
 

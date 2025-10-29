@@ -125,35 +125,65 @@ func main() {
 
 ### High-Level Functions
 
-#### `ConvertFile(inputPath, outputPath string, opts *Options) error`
+#### Single Page Conversion
+
+##### `ConvertFile(inputPath, outputPath string, opts *Options) error`
 
 Convert a .rm file on disk to the specified output format.
 - Format is inferred from output file extension
 - Uses default options if `opts` is `nil`
 
-#### `Convert(input io.Reader, output io.Writer, format Format, opts *Options) error`
+##### `Convert(input io.Reader, output io.Writer, format Format, opts *Options) error`
 
 Convert from a reader to a writer.
 - Useful for streaming or in-memory conversions
 - Format must be specified explicitly (`rmc.FormatPDF` or `rmc.FormatSVG`)
 
-#### `ConvertFromBytes(data []byte, format Format, opts *Options) ([]byte, error)`
+##### `ConvertFromBytes(data []byte, format Format, opts *Options) ([]byte, error)`
 
 Convert from byte slice to byte slice (fully in-memory).
 - Most convenient for working with binary data
 - Returns converted data as byte slice
 
-#### `ConvertToBytes(data []byte, format Format, opts *Options) ([]byte, error)`
+##### `ConvertToBytes(data []byte, format Format, opts *Options) ([]byte, error)`
 
 Alias for `ConvertFromBytes` (same functionality).
 
-#### `ConvertFileToBytes(inputPath string, format Format, opts *Options) ([]byte, error)`
+##### `ConvertFileToBytes(inputPath string, format Format, opts *Options) ([]byte, error)`
 
 Read a file and convert to bytes in one step.
 
-#### `ConvertBytesToFile(data []byte, outputPath string, format Format, opts *Options) error`
+##### `ConvertBytesToFile(data []byte, outputPath string, format Format, opts *Options) error`
 
 Convert bytes and write to file in one step.
+
+#### Multipage PDF Conversion
+
+##### `ConvertFiles(inputPaths []string, outputPath string, opts *Options) error`
+
+Convert multiple ordered .rm files to a multipage PDF.
+- Files are processed in the order they appear in the slice
+- Only PDF format is supported for multipage output
+- Uses default options if `opts` is `nil`
+
+##### `ConvertMultipleFromBytes(pages [][]byte, opts *Options) ([]byte, error)`
+
+Convert multiple ordered .rm files from binary data to a multipage PDF.
+- Pages are processed in the order they appear in the slice
+- Returns the multipage PDF as a byte slice
+- Only PDF format is supported for multipage output
+
+##### `ConvertFilesToBytes(inputPaths []string, opts *Options) ([]byte, error)`
+
+Read multiple ordered .rm files and convert to a multipage PDF as bytes.
+- Combines file reading and conversion in one step
+- Files are processed in the order they appear in the slice
+
+##### `ConvertMultipleBytesToFile(pages [][]byte, outputPath string, opts *Options) error`
+
+Convert multiple ordered .rm files from binary data to a multipage PDF and write to file.
+- Combines conversion and file writing in one step
+- Pages are processed in the order they appear in the slice
 
 ### Types
 
@@ -226,6 +256,97 @@ func main() {
 }
 ```
 
+## Multipage PDF Examples
+
+### Convert Multiple Files
+
+```go
+package main
+
+import (
+    "log"
+    "github.com/joagonca/rmc-go"
+)
+
+func main() {
+    // Files are processed in the order they appear
+    files := []string{
+        "page1.rm",
+        "page2.rm",
+        "page3.rm",
+    }
+
+    // Convert to multipage PDF
+    err := rmc.ConvertFiles(files, "multipage_output.pdf", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Println("Created multipage PDF successfully")
+}
+```
+
+### Convert from Byte Slices
+
+```go
+package main
+
+import (
+    "log"
+    "os"
+    "github.com/joagonca/rmc-go"
+)
+
+func main() {
+    // Read pages (e.g., from database, HTTP requests, etc.)
+    page1Data, _ := os.ReadFile("page1.rm")
+    page2Data, _ := os.ReadFile("page2.rm")
+    page3Data, _ := os.ReadFile("page3.rm")
+
+    // Create ordered slice of pages
+    pages := [][]byte{page1Data, page2Data, page3Data}
+
+    // Convert to multipage PDF bytes
+    pdfData, err := rmc.ConvertMultipleFromBytes(pages, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Write to file or send over network
+    os.WriteFile("output.pdf", pdfData, 0644)
+
+    // Or use convenience function to write directly
+    err = rmc.ConvertMultipleBytesToFile(pages, "output2.pdf", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+### With Legacy Inkscape Renderer
+
+```go
+package main
+
+import (
+    "log"
+    "github.com/joagonca/rmc-go"
+)
+
+func main() {
+    files := []string{"page1.rm", "page2.rm", "page3.rm"}
+
+    opts := &rmc.Options{
+        UseLegacy: true, // Use Inkscape instead of Cairo
+    }
+
+    err := rmc.ConvertFiles(files, "multipage_legacy.pdf", opts)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
 ## Use Cases
 
 ### HTTP Server Example
@@ -291,6 +412,55 @@ func main() {
 
         log.Printf("Converted %s -> %s", file, outputFile)
     }
+}
+```
+
+### Multipage HTTP Server
+
+```go
+package main
+
+import (
+    "encoding/json"
+    "io"
+    "net/http"
+    "github.com/joagonca/rmc-go"
+)
+
+// Request format: array of base64-encoded .rm files
+type MultipageRequest struct {
+    Pages [][]byte `json:"pages"`
+}
+
+func multipageConvertHandler(w http.ResponseWriter, r *http.Request) {
+    // Parse JSON request
+    var req MultipageRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    if len(req.Pages) == 0 {
+        http.Error(w, "no pages provided", http.StatusBadRequest)
+        return
+    }
+
+    // Convert to multipage PDF
+    pdfData, err := rmc.ConvertMultipleFromBytes(req.Pages, nil)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Send PDF back
+    w.Header().Set("Content-Type", "application/pdf")
+    w.Header().Set("Content-Disposition", "attachment; filename=\"output.pdf\"")
+    w.Write(pdfData)
+}
+
+func main() {
+    http.HandleFunc("/convert-multipage", multipageConvertHandler)
+    http.ListenAndServe(":8080", nil)
 }
 ```
 
