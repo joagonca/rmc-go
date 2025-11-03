@@ -2,11 +2,20 @@
 
 package export
 
+/*
+#cgo pkg-config: cairo
+#include <stdlib.h>
+#include <cairo.h>
+#include <cairo-pdf.h>
+*/
+import "C"
+
 import (
 	"fmt"
 	"io"
 	"math"
 	"os"
+	"unsafe"
 
 	"github.com/joagonca/rmc-go/parser"
 	"github.com/ungerik/go-cairo"
@@ -17,6 +26,13 @@ type pageDimensions struct {
 	width, height float64
 	xMin, yMin    float64
 	anchorPos     map[parser.CrdtID]float64
+}
+
+// setPDFPageSize sets the size for the current page in a PDF surface
+// This wraps the cairo_pdf_surface_set_size C function that isn't exposed in go-cairo
+func setPDFPageSize(surface *cairo.Surface, width, height float64) {
+	surfacePtr, _ := surface.Native()
+	C.cairo_pdf_surface_set_size((*C.cairo_surface_t)(unsafe.Pointer(surfacePtr)), C.double(width), C.double(height))
 }
 
 // calculatePageDimensions computes the bounding box and dimensions for a scene tree
@@ -315,8 +331,6 @@ func ExportToMultipagePDFCairo(trees []*parser.SceneTree, w io.Writer) error {
 	defer os.Remove(tmpPath)
 
 	// Create PDF surface with first page dimensions
-	// Note: go-cairo doesn't expose cairo_pdf_surface_set_size
-	// All pages will use the first page's dimensions (a limitation of this binding)
 	pdfSurface := cairo.NewPDFSurface(tmpPath, firstDims.width, firstDims.height, cairo.PDF_VERSION_1_5)
 	defer pdfSurface.Finish()
 
@@ -331,6 +345,8 @@ func ExportToMultipagePDFCairo(trees []*parser.SceneTree, w io.Writer) error {
 			if err != nil {
 				return fmt.Errorf("page %d: %w", pageIdx+1, err)
 			}
+			// Set the page size for this page (pages after the first)
+			setPDFPageSize(pdfSurface, dims.width, dims.height)
 		}
 
 		// Render the page
