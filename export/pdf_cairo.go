@@ -163,10 +163,29 @@ func drawGroupCairo(group *parser.Group, surface *cairo.Surface, anchorPos map[p
 	surface.Translate(scale(anchorX), scale(anchorY))
 
 	if group.Children != nil {
-		// CRDT-resolved order (topological sort by LeftID/RightID) so layers
-		// render in the correct z-order. Physical slice order does not match
-		// render order in v6 files.
-		for _, item := range group.Children.SortedItems() {
+		sorted := group.Children.SortedItems()
+
+		// reMarkable stores layer groups at the root in newest-first physical
+		// order, but the device renders oldest-first (newest on TOP). We need
+		// to reverse when this group contains sub-Groups (layers). For leaf
+		// groups containing Lines (strokes), physical order is correct
+		// (newer stroke on top of older).
+		hasGroupChildren := false
+		for _, it := range sorted {
+			if _, ok := it.Value.(*parser.Group); ok {
+				hasGroupChildren = true
+				break
+			}
+		}
+		if hasGroupChildren {
+			rev := make([]parser.CrdtSequenceItem, len(sorted))
+			for i, it := range sorted {
+				rev[len(sorted)-1-i] = it
+			}
+			sorted = rev
+		}
+
+		for _, item := range sorted {
 			if item.Value == nil {
 				continue
 			}
