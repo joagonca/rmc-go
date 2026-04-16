@@ -163,7 +163,10 @@ func drawGroupCairo(group *parser.Group, surface *cairo.Surface, anchorPos map[p
 	surface.Translate(scale(anchorX), scale(anchorY))
 
 	if group.Children != nil {
-		for _, item := range group.Children.Items {
+		// CRDT-resolved order (topological sort by LeftID/RightID) so layers
+		// render in the correct z-order. Physical slice order does not match
+		// render order in v6 files.
+		for _, item := range group.Children.SortedItems() {
 			if item.Value == nil {
 				continue
 			}
