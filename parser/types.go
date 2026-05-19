@@ -198,6 +198,10 @@ type ImageEntry struct {
 	Flags     LwwValue[[]uint8]
 }
 
+type Image struct {
+
+}
+
 // NewEmptyGroup creates a new empty group with default values
 func NewEmptyGroup(id CrdtID) *Group {
 	return &Group{
