@@ -193,6 +193,19 @@ type Group struct {
 	AnchorOriginX   *LwwValue[float32]
 }
 
+type ImageEntry struct {
+	Filename  LwwValue[string]
+	Flags     LwwValue[[]uint8]
+}
+
+type Image struct {
+	Filename  LwwValue[string]
+	X         float32
+	Y         float32
+	Width     float32
+	Height    float32
+}
+
 // NewEmptyGroup creates a new empty group with default values
 func NewEmptyGroup(id CrdtID) *Group {
 	return &Group{

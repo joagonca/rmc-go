@@ -245,6 +245,11 @@ func (tbr *TaggedBlockReader) ReadLwwString(index int) (LwwValue[string], error)
 	return readLww(tbr, index, tbr.ReadString)
 }
 
+// ReadLwwString reads a last-write-wins string
+func (tbr *TaggedBlockReader) ReadLwwBytes(index int) (LwwValue[[]byte], error) {
+	return readLww(tbr, index, tbr.ReadBytes)
+}
+
 // ReadString reads a string block
 func (tbr *TaggedBlockReader) ReadString(index int) (string, error) {
 	if _, err := tbr.ReadSubblock(index); err != nil {
@@ -252,6 +257,16 @@ func (tbr *TaggedBlockReader) ReadString(index int) (string, error) {
 	}
 
 	return tbr.data.ReadString()
+}
+
+// ReadBytes reads a byte block
+func (tbr *TaggedBlockReader) ReadBytes(index int) ([]byte, error) {
+	block, err := tbr.ReadSubblock(index)
+	if err != nil {
+		return nil, err
+	}
+
+	return tbr.data.ReadBytes(int(block))
 }
 
 // RemainingInBlock returns the number of bytes remaining in the current block

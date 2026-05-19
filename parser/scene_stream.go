@@ -19,6 +19,8 @@ const (
 	BlockTypeAuthorIDs      = 0x09
 	BlockTypePageInfo       = 0x0A
 	BlockTypeSceneInfo      = 0x0D
+	BlockTypeImageListInfo  = 0x0E
+	BlockTypeSceneImageItem = 0x0F
 
 	// Point structure sizes for different versions
 	PointSizeV2 = 0x0E // 14 bytes per point (version 2)
@@ -30,6 +32,7 @@ type SceneTree struct {
 	Root     *Group
 	RootText *Text
 	Nodes    map[CrdtID]*Group
+	Images   map[[16]byte]ImageEntry
 }
 
 // NewSceneTree creates a new empty scene tree
@@ -40,6 +43,7 @@ func NewSceneTree() *SceneTree {
 	return &SceneTree{
 		Root:  root,
 		Nodes: map[CrdtID]*Group{rootID: root},
+		Images:map[[16]byte]ImageEntry{},
 	}
 }
 
@@ -89,6 +93,10 @@ func (st *SceneTree) processBlock(reader *TaggedBlockReader, blockInfo *BlockInf
 		return st.readSceneLineItemBlock(reader, blockInfo.CurrentVersion)
 	case BlockTypeRootText:
 		return st.readRootTextBlock(reader)
+	case BlockTypeImageListInfo:
+		return st.readImageListBlock(reader)
+	case BlockTypeSceneImageItem:
+		return st.readSceneImageItemBlock(reader, blockInfo.CurrentVersion)
 	case BlockTypeMigrationInfo, BlockTypeAuthorIDs, BlockTypePageInfo:
 		// Skip these blocks for now
 		return nil
@@ -565,6 +573,115 @@ func readPoint(ds *DataStream, version uint8) (Point, error) {
 	}, nil
 }
 
+// readSceneImageItemBlock reads a scene image item block
+func (st *SceneTree) readSceneImageItemBlock(reader *TaggedBlockReader, version uint8) error {
+	parentID, err := reader.ReadID(1)
+	if err != nil {
+		return err
+	}
+
+	itemID, err := reader.ReadID(2)
+	if err != nil {
+		return err
+	}
+
+	leftID, err := reader.ReadID(3)
+	if err != nil {
+		return err
+	}
+
+	rightID, err := reader.ReadID(4)
+	if err != nil {
+		return err
+	}
+
+	deletedLength, err := reader.ReadInt(5)
+	if err != nil {
+		return err
+	}
+
+	var image *Image
+	if reader.HasSubblock(6) {
+		_, err := reader.ReadSubblock(6)
+		if err != nil {
+			return err
+		}
+
+		image, err = st.readImage(reader)
+		if err != nil {
+			return err
+		}
+	}
+
+	if image == nil {
+		return nil
+	}
+
+	// Add to parent's children
+	parent, exists := st.Nodes[parentID]
+	if !exists {
+		// Create parent if it doesn't exist
+		parent = NewEmptyGroup(parentID)
+		st.Nodes[parentID] = parent
+	}
+
+	parent.Children.Add(CrdtSequenceItem{
+		ItemID:        itemID,
+		LeftID:        leftID,
+		RightID:       rightID,
+		DeletedLength: deletedLength,
+		Value:         image,
+	})
+
+	return nil
+}
+
+// readImage reads an Image from the stream
+func (st *SceneTree) readImage(reader *TaggedBlockReader) (*Image, error) {
+	itemType, err := reader.data.ReadUint8()
+	if itemType != 7 {
+		return nil, fmt.Errorf("invalid item type %d (expected 7)", itemType)
+	}
+
+	uuid, err := reader.ReadLwwBytes(1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image uuid: %w", err)
+	}
+
+	ts, err := reader.ReadID(2)
+	if err != nil {
+		return nil, err
+	}
+	_ = ts
+
+	_, err = reader.ReadSubblock(3)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image vertex block: %w", err)
+	}
+
+	numVertices, err := reader.data.ReadVarUint()
+	if numVertices != 16 {
+		return nil, fmt.Errorf("number of vertices %d (expected 16)", numVertices)
+	}
+
+	vertices := [16]float32{};
+
+	for i := 0; i < 16; i++ {
+		vertices[i], err = reader.data.ReadFloat32()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Image{
+		Filename: st.Images[([16]byte)(uuid.Value)].Filename,
+		X:        vertices[0],
+		Y:        vertices[1],
+		Width:    vertices[4] - vertices[0],
+		Height:   vertices[9] - vertices[1],
+	}, nil
+}
+
 // readTextItems reads all text items from a CRDT sequence
 func readTextItems(reader *TaggedBlockReader) (*CrdtSequence, error) {
 	// Navigate to text items section
@@ -647,6 +764,48 @@ func readTextPosition(reader *TaggedBlockReader) (posX, posY float64, width floa
 	}
 
 	return posX, posY, width, nil
+}
+
+// readImageListBlock reads the image index block
+func (st *SceneTree) readImageListBlock(reader *TaggedBlockReader) error {
+	_, err := reader.ReadSubblock(1)
+	if err != nil {
+		return fmt.Errorf("failed to read block ID: %w", err)
+	}
+
+	numImages, err := reader.data.ReadVarUint()
+	if err != nil {
+		return fmt.Errorf("failed to read number of images: %w", err)
+	}
+
+	for i := 0; i < int(numImages); i++ {
+		_, err = reader.ReadSubblock(0)
+		if err != nil {
+			return fmt.Errorf("failed to read sublock for image %d: %w", i, err)
+		}
+
+		uuid, err := reader.data.ReadBytes(16)
+		if err != nil {
+			return fmt.Errorf("failed to read uuid: %w", err)
+		}
+
+		filename, err := reader.ReadLwwString(1)
+		if err != nil {
+			return fmt.Errorf("failed to read filename: %w", err)
+		}
+
+		flags, err := reader.ReadLwwBytes(2)
+		if err != nil {
+			return fmt.Errorf("failed to read image flags: %w", err)
+		}
+
+		st.Images[([16]byte)(uuid)] = ImageEntry{
+			Filename: filename,
+			Flags: flags,
+		}
+	}
+
+	return nil
 }
 
 // readRootTextBlock reads the root text block
