@@ -246,6 +246,8 @@ func drawGroup(group *parser.Group, w io.Writer, anchorPos map[parser.CrdtID]flo
 				}
 			case *parser.Line:
 				drawStroke(v, w, indent+"\t")
+			case *parser.Image:
+				drawImage(v, w, indent+"\t")
 			case *parser.Text:
 				if err := drawText(v, w, indent+"\t"); err != nil {
 					return err
@@ -299,6 +301,14 @@ func drawStroke(line *parser.Line, w io.Writer, indent string) {
 	}
 
 	fmt.Fprintf(w, "\" />\n")
+}
+
+func drawImage(image *parser.Image, w io.Writer, indent string) {
+	fmt.Fprintf(w, "%s<g transform=\"translate(%.3f, %.3f)\">\n",
+		indent, scale(float64(image.X)), scale(float64(image.Y)))
+	fmt.Fprintf(w, "%s\t<image height=\"%.3f\" width=\"%.3f\" href=\"%s\"/>\n",
+		indent, scale(float64(image.Height)), scale(float64(image.Width)), image.Filename.Value)
+	fmt.Fprintf(w, "%s</g>\n", indent)
 }
 
 func drawText(text *parser.Text, w io.Writer, indent string) error {
