@@ -19,6 +19,7 @@ const (
 	BlockTypeAuthorIDs      = 0x09
 	BlockTypePageInfo       = 0x0A
 	BlockTypeSceneInfo      = 0x0D
+	BlockTypeImageListInfo  = 0x0E
 
 	// Point structure sizes for different versions
 	PointSizeV2 = 0x0E // 14 bytes per point (version 2)
@@ -30,6 +31,7 @@ type SceneTree struct {
 	Root     *Group
 	RootText *Text
 	Nodes    map[CrdtID]*Group
+	Images   map[[16]byte]ImageEntry
 }
 
 // NewSceneTree creates a new empty scene tree
@@ -40,6 +42,7 @@ func NewSceneTree() *SceneTree {
 	return &SceneTree{
 		Root:  root,
 		Nodes: map[CrdtID]*Group{rootID: root},
+		Images:map[[16]byte]ImageEntry{},
 	}
 }
 
@@ -89,6 +92,8 @@ func (st *SceneTree) processBlock(reader *TaggedBlockReader, blockInfo *BlockInf
 		return st.readSceneLineItemBlock(reader, blockInfo.CurrentVersion)
 	case BlockTypeRootText:
 		return st.readRootTextBlock(reader)
+	case BlockTypeImageListInfo:
+		return st.readImageListBlock(reader)
 	case BlockTypeMigrationInfo, BlockTypeAuthorIDs, BlockTypePageInfo:
 		// Skip these blocks for now
 		return nil
@@ -647,6 +652,48 @@ func readTextPosition(reader *TaggedBlockReader) (posX, posY float64, width floa
 	}
 
 	return posX, posY, width, nil
+}
+
+// readImageListBlock reads the image index block
+func (st *SceneTree) readImageListBlock(reader *TaggedBlockReader) error {
+	_, err := reader.ReadSubblock(1)
+	if err != nil {
+		return fmt.Errorf("failed to read block ID: %w", err)
+	}
+
+	numImages, err := reader.data.ReadVarUint()
+	if err != nil {
+		return fmt.Errorf("failed to read number of images: %w", err)
+	}
+
+	for i := 0; i < int(numImages); i++ {
+		_, err = reader.ReadSubblock(0)
+		if err != nil {
+			return fmt.Errorf("failed to read sublock for image %d: %w", i, err)
+		}
+
+		uuid, err := reader.data.ReadBytes(16)
+		if err != nil {
+			return fmt.Errorf("failed to read uuid: %w", err)
+		}
+
+		filename, err := reader.ReadLwwString(1)
+		if err != nil {
+			return fmt.Errorf("failed to read filename: %w", err)
+		}
+
+		flags, err := reader.ReadLwwBytes(2)
+		if err != nil {
+			return fmt.Errorf("failed to read image flags: %w", err)
+		}
+
+		st.Images[([16]byte)(uuid)] = ImageEntry{
+			Filename: filename,
+			Flags: flags,
+		}
+	}
+
+	return nil
 }
 
 // readRootTextBlock reads the root text block
