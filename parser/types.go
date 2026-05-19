@@ -199,7 +199,11 @@ type ImageEntry struct {
 }
 
 type Image struct {
-
+	Filename  LwwValue[string]
+	X         float32
+	Y         float32
+	Width     float32
+	Height    float32
 }
 
 // NewEmptyGroup creates a new empty group with default values

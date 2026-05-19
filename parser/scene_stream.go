@@ -602,6 +602,15 @@ func (st *SceneTree) readSceneImageItemBlock(reader *TaggedBlockReader, version 
 
 	var image *Image
 	if reader.HasSubblock(6) {
+		_, err := reader.ReadSubblock(6)
+		if err != nil {
+			return err
+		}
+
+		image, err = st.readImage(reader)
+		if err != nil {
+			return err
+		}
 	}
 
 	if image == nil {
@@ -625,6 +634,52 @@ func (st *SceneTree) readSceneImageItemBlock(reader *TaggedBlockReader, version 
 	})
 
 	return nil
+}
+
+// readImage reads an Image from the stream
+func (st *SceneTree) readImage(reader *TaggedBlockReader) (*Image, error) {
+	itemType, err := reader.data.ReadUint8()
+	if itemType != 7 {
+		return nil, fmt.Errorf("invalid item type %d (expected 7)", itemType)
+	}
+
+	uuid, err := reader.ReadLwwBytes(1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image uuid: %w", err)
+	}
+
+	ts, err := reader.ReadID(2)
+	if err != nil {
+		return nil, err
+	}
+	_ = ts
+
+	_, err = reader.ReadSubblock(3)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image vertex block: %w", err)
+	}
+
+	numVertices, err := reader.data.ReadVarUint()
+	if numVertices != 16 {
+		return nil, fmt.Errorf("number of vertices %d (expected 16)", numVertices)
+	}
+
+	vertices := [16]float32{};
+
+	for i := 0; i < 16; i++ {
+		vertices[i], err = reader.data.ReadFloat32()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Image{
+		Filename: st.Images[([16]byte)(uuid.Value)].Filename,
+		X:        vertices[0],
+		Y:        vertices[1],
+		Width:    vertices[4] - vertices[0],
+		Height:   vertices[9] - vertices[1],
+	}, nil
 }
 
 // readTextItems reads all text items from a CRDT sequence
